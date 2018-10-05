@@ -26,7 +26,6 @@ import zipfile
 import pandas as pd
 import itertools    
 from bs4 import BeautifulSoup
-#import pyautogui as pgi
 from selenium.webdriver.common.keys import Keys
 import pprint
 import gzip
@@ -519,7 +518,7 @@ def cali_step_one():
                         ok_button.click()    
                         return_to_transactions = driver.find_element_by_xpath('//*[@id="frmRet"]/input')
                         return_to_transactions.click()
-                                                    
+    driver.close()                                                    
 def main():
     cali_step_one()
 

@@ -50,6 +50,8 @@ def prims():
         os.remove(file)
     driver.implicitly_wait(30)
     wait = WebDriverWait(driver,15)
+    to_address = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Notification Address', usecols='A',dtype='str',names=['Email'],header=None).iloc[0,0]
+
     driver.get('https://www.primsconnect.molinahealthcare.com/_layouts/fba/primslogin.aspx?ReturnUrl=%2f_layouts%2fAuthenticate.aspx%3fSource%3d%252FSitePages%252FHome%252Easpx&Source=%2FSitePages%2FHome%2Easpx')
     i_accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_RadCheckBoxAccept"]/span[1]')))
     i_accept.click()
@@ -137,7 +139,7 @@ def prims():
                 submit.click()
                 wait.until(EC.staleness_of(submit))
     driver.close()            
-    return retrieved
+    return retrieved, to_address
 
 def body_maker(L):
     body = 'The following reports were requested:'
@@ -146,9 +148,9 @@ def body_maker(L):
     return body
                 
 def main():
-    requested = prims()
+    requested,to_address = prims()
     body = body_maker(requested)
-    send_message(subject='Prims Invoice Request',body=body,to='burtner_abt_alec@lilly.com')
+    send_message(subject='Prims Invoice Request',body=body,to=to_address)
     
 if __name__=='__main__':
     main()

@@ -9,10 +9,10 @@ Created on Mon Sep 17 08:42:03 2018
 from win32com.client import Dispatch
 
 
-def send_message(subject,body,to)
+def send_message(subject,body,to):
     subject = subject
     body = body
-    recipient = 'burtner_abt_alec@lilly.com'
+    recipient = to
     base = 0x0
     obj = Dispatch('Outlook.Application')
     newMail = obj.CreateItem(base)

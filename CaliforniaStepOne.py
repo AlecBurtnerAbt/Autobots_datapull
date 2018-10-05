@@ -241,7 +241,8 @@ def cali_one():
     for labeler, prefix in zip(codes,prefixes):
         labeler().click()
         copy_of_invoice = lambda: wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="middle_column"]/div[2]/table/tbody/tr/td[2]/table/tbody/tr[1]/td/a/b')))            
-        copy_of_invoice().click()            
+        copy_of_invoice().click()          
+        url = driver.current_url
         for program in master_dict[labeler]:
             drop_down = lambda: wait.until(EC.element_to_be_clickable((By.ID,'Program')))
             drop_down_select = lambda: Select(drop_down())
@@ -255,7 +256,7 @@ def cali_one():
             submit_button.click()
             ok = wait.until(EC.element_to_be_clickable((By.ID,'btnOK')))
             ok.click()            
-            while (any(map((lambda x: '_wLbl_' in x),os.listdir()))==False or any(map((lambda x: '.tmp' in x),os.listdir()))==True):
+            while (any(map((lambda x: '.crd' in x),os.listdir()))==True or any(map((lambda x: '.tmp' in x),os.listdir()))==True):
                 time.sleep(1)
             files = os.listdir()
             latest_file = max(os.listdir(),key=os.path.getctime)
@@ -520,6 +521,7 @@ def cali_one():
                         ok_button.click()    
                         return_to_transactions = driver.find_element_by_xpath('//*[@id="frmRet"]/input')
                         return_to_transactions.click()
+    driver.close()
 def main():
     cali_one()
 

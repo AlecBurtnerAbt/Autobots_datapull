@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Mon Oct  1 12:28:42 2018
+
+@author: C252059
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Tue Aug 21 09:46:33 2018
 
 @author: c252059
@@ -29,9 +36,21 @@ import gzip
 import numpy as np
 import xlsxwriter as xl
 from mail_maker import send_message
+import multiprocessing as mp
+
+
 
 def prims_download():
-    os.chdir('C:/Users/')
+    def login_proc(driver):
+        i_accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_RadCheckBoxAccept"]/span[1]')))
+        i_accept.click()
+        flex_mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Programs', usecols='B,C,D,E',dtype='str',names=['state','flex_id','state_id','state_name'])
+        user_name = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_txtUserName"]')
+        user_name.send_keys(username)
+        pass_word = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_txtPassword"]')
+        pass_word.send_keys(password)
+        login = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_btnLogin_input"]')
+        login.click()
     statesII = {
         'AK': 'Alaska',
         'AL': 'Alabama',
@@ -92,7 +111,7 @@ def prims_download():
         'WY': 'Wyoming'
                         }
         #Open the webdriver, define the wait function, and get through the login page
-
+    os.chdir('C:/Users/')
     chromeOptions = webdriver.ChromeOptions()
     prefs = {'download.default_directory':'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder'}
     chromeOptions.add_experimental_option("prefs",prefs)
@@ -108,23 +127,11 @@ def prims_download():
     login_credentials = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Prims', usecols='A,B',dtype='str')
     username = login_credentials.iloc[0,0]
     password = login_credentials.iloc[0,1]
-    to_address = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Notification Address', usecols='A',dtype='str',names=['Email'],header=None).iloc[0,0]
-
     driver.get('https://www.primsconnect.molinahealthcare.com/_layouts/fba/primslogin.aspx?ReturnUrl=%2f_layouts%2fAuthenticate.aspx%3fSource%3d%252FSitePages%252FHome%252Easpx&Source=%2FSitePages%2FHome%2Easpx')
-    driver = driver
-    i_accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_RadCheckBoxAccept"]/span[1]')))
-    i_accept.click()
-    flex_mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Programs', usecols='B,C,D,E',dtype='str',names=['state','flex_id','state_id','state_name'])
-    user_name = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_txtUserName"]')
-    user_name.send_keys(username)
-    pass_word = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_txtPassword"]')
-    pass_word.send_keys(password)
-    login = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_btnLogin_input"]')
-    login.click()          
+    login_proc(driver)
     #Now inside the webpage, begin selection process
     submit_request = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_radLnkSubmitRequest_input"]')))
-    submit_request.click()    
-    
+    submit_request.click()       
     yq2 = '{}Q{}'.format(qtr,yr)
     yq3 = '{}-Q{}'.format(yr,qtr)
     #Make the program to state dictionaries
@@ -132,16 +139,9 @@ def prims_download():
     lists = soup.find_all('ul',attrs={'class':'rcbList'})    
     states = [x.text for x in lists[0]]    
     state_programs = {}
-    invoices_obtained = []
-    
-    
-    #have to select the state to get the state programs to populate
-    
+    #have to select the state to get the state programs to populate    
     #The below block of code is creating the state: programcode:program name dictionary
-    #to create the filenames for after download
-    
-    
-    
+    #to create the filenames for after download    
     for state in states:
         drop_down = driver.find_element_by_xpath('//*[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_StateDropDown_Input"]')
         if drop_down.get_attribute('value')==state:
@@ -164,11 +164,9 @@ def prims_download():
         alert.accept()
     except NoAlertPresentException as ex:
         pass
-    
     #The below block of code crawls through available download pages and 
-    #downloads the data, renames it, and moves it to the appropriate directory
-   
-    
+    #downloads the data, renames it, and moves it to the appropriate directory   
+    xpaths = []
     #Chane the number of reports per page
     number_per_page = driver.find_element_by_xpath('//*[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_radGridRequestSummary_ctl00_ctl03_ctl01_ChangePageSizeTextBox"]')
     number_per_page.clear()    
@@ -190,127 +188,162 @@ def prims_download():
         data = pd.DataFrame(data,columns=['report_id','manufacturer','state','date_requested','type','status','file_name','date_complete','download_link'])
         data['state_id'] = data['file_name'].str.rsplit('_',0).str[-1]
         data['state_id'] = data['state_id'].str.rsplit('.').str[0]
-        data= pd.merge(data,flex_mapper,how='left',on=['state','state_id'])
         data = data.fillna('no_flex_id')
         data['labeler'] = data['file_name'].str.split('_').str[2]
         data_copy = data
-        data = data[(data['type']=='Invoice')|(data['type']=='EInvoice')]
+        data = data[data['type']=='Claims']
         data = data.drop_duplicates(subset=['file_name']).reset_index(drop=True)
         
-        ndc_list = []
+      
         for i in range(len(data)):
             state = data.loc[i,'state']
-            program = data.loc[i,'flex_id']
+            state_full = statesII[state]
+            program_identifier = data.loc[i,'file_name'].split('_')[7]
+            program = state_programs[state_full][program_identifier]
             file_type = data.loc[i,'file_name'][-4:].lower()
             labeler= data.loc[i,'labeler']
-            if program =='no_flex_id':
-                program = state_programs[statesII[state]][data.loc[i,'state_id']].strip()
-            path ='O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Invoices\\{}\\{}\\{}\\Q{}\\'.format(statesII[state],program,yr,qtr)
             file_name = '_'.join([state,program,yq2,labeler])+file_type
-            if os.path.exists(path)==False:
-                os.makedirs(path)
             xpath = '//tr/td[text()="{}"]/following-sibling::td/span[contains(@id,"_lnkDownload")]'.format(data.loc[i,'file_name'])
-            link = driver.find_element_by_xpath(xpath)
-            link.click()
-            while data.loc[i,'file_name'] not in os.listdir():
-                time.sleep(1)
-            if file_type =='.txt':
-                read_flag =0
-                while read_flag ==0:
-                    try:
-                        with open(data.loc[i,'file_name']) as f:
-                            lines = f.readlines()
-                            menu_item = '  -  '.join([data.loc[i,'state_id'],state_programs[statesII[state]][data.loc[i,'state_id']].strip()])
-                            ndcs = (state,menu_item,list(set([x[6:17] for x in lines])))
-                            ndc_list.append(ndcs)
-                            read_flag=1
-                    except PermissionError as ex:
-                        pass
-            shutil.move(data.loc[i,'file_name'],path+file_name)
-            invoices_obtained.append(file_name)
-            
-    #Send message to CMA team notifying them which invoices were  downloaded
-    from mail_maker import send_message
-    if any(map((lambda x: 'Claims' in x),data_copy.type)):
-        stinger = "\n\nThere are CLD reports available, please launch the CLD downloader script for Prims."
-    else:
-        stinger = ''
-    body = "The following invoices were obtained\n"+'\n'.join(invoices_obtained)+stinger
-    subject = "Florida and West Viriginia Invoices"
-    send_message(subject,body,to_address)
-    #Have the state : NDC tuples, move onto getting CLD
-    submit_request = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_radLnkSubmitRequest_input"]')))
-    submit_request.click()    
+            xpaths.append((xpath,data.loc[i,'file_name']))
+    driver.close()
+    return xpaths, state_programs, username, password, statesII, yr, qtr
+
+
+def make_chunks(list_of_files):
+    #Break the information for each report down into 
+    import math
+    n = math.ceil(len(list_of_files)/3)
+    chunks = [list_of_files[x:x+n] for x in range(0,len(list_of_files),n)]
+    return chunks
+         
+def get_cld_reports(xpaths,username,password):
+    def login_proc():
+        i_accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_RadCheckBoxAccept"]/span[1]')))
+        i_accept.click()
+        flex_mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Programs', usecols='B,C,D,E',dtype='str',names=['state','flex_id','state_id','state_name'])
+        user_name = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_txtUserName"]')
+        user_name.send_keys(username)
+        pass_word = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_txtPassword"]')
+        pass_word.send_keys(password)
+        login = driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_btnLogin_input"]')
+        login.click()
+    os.chdir('C:/Users/')
+    chromeOptions = webdriver.ChromeOptions()
+    prefs = {'download.default_directory':'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder'}
+    chromeOptions.add_experimental_option("prefs",prefs)
+    driver = webdriver.Chrome(chrome_options = chromeOptions)
+    driver.implicitly_wait(30)
+    wait = WebDriverWait(driver,15)
+    os.chdir('O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder')  
+    driver.get('https://www.primsconnect.molinahealthcare.com/_layouts/fba/primslogin.aspx?ReturnUrl=%2f_layouts%2fAuthenticate.aspx%3fSource%3d%252FSitePages%252FHome%252Easpx&Source=%2FSitePages%2FHome%2Easpx')
+    in_flag = 0
+    counter = 0
+    while in_flag ==0:
+        login_proc()
+        try: 
+            driver.find_element_by_xpath('//input[@value="Submit Request"]')
+            in_flag=1
+            break
+        except TimeoutException as ex:
+            pass                
+        driver.get('https://www.primsconnect.molinahealthcare.com/_layouts/fba/primslogin.aspx?ReturnUrl=%2f_layouts%2fAuthenticate.aspx%3fSource%3d%252FSitePages%252FHome%252Easpx&Source=%2FSitePages%2FHome%2Easpx')
+        counter +=1
+        time.sleep(1*counter)
+    def expand():
+        number_per_page = driver.find_element_by_xpath('//*[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_radGridRequestSummary_ctl00_ctl03_ctl01_ChangePageSizeTextBox"]')
+        number_per_page.clear()    
+        number_per_page.send_keys('10000')    
+        inter=driver.find_element_by_xpath('//*[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_radGridRequestSummary_ctl00_ctl03_ctl01_ChangePageSizeLinkButton"]')
+        inter.click()
+    expand()
+    for xpath,file in xpaths:
+        success=0
+
+        while success==0:
+            try:
+                link = driver.find_element_by_xpath(xpath)
+                counter = 0
+                link.click()
+                while file not in os.listdir() and counter<10:
+                    time.sleep(1.5)
+                    counter+=1
+            except counter >9 or TimeoutException as ex:
+                pass
+            if file in os.listdir():
+                success=1
+                break
+            else:
+                try:
+                    driver.find_element_by_xpath('//*[@id="ctl00_PlaceHolderMain_LoginWebPart_ctl00_btnLogin_input"]')
+                    login_proc()
+                    expand()
+                except NoSuchElementException as exc:
+                    pass
+    driver.close()
     
-    
-    
-    
-    for report in ndc_list:
-        
-        state_drop_down = driver.find_element_by_xpath('//input[contains(@name,"$ctl00$StateDropDown")]')
-        if state_drop_down.get_attribute('value')==statesII[report[0]]:
+
+def make_files(state_programs,yr,qtr,statesII):
+    names = list(set(['{}_{}'.format(x.split('_')[1],x.split('_')[7]) for x in os.listdir()]))    
+    frames = {k:pd.DataFrame() for k in names}
+    files = [x.split('_') for x in os.listdir()]    
+    files = sorted(files,key=lambda x: (x[1],x[7]))
+    files = ['_'.join(x) for x in files]
+    cld_obtained = []
+    to_address = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Notification Address', usecols='A',dtype='str',names=['Email'],header=None).iloc[0,0]
+
+    for file in files:
+        state = file.split('_')[1]
+        program_code = file.split('_')[7]
+        key = '{}_{}'.format(state,program_code)
+        if state=='FL':
+            skip = 1
+        else:
+            skip = 3
+        temp = pd.read_excel(file,skiprows=skip,skipfooter=1)
+        frames[key] = frames[key].append(temp)
+        #os.remove(file)
+  
+    for key in frames.keys():
+        state = key.split('_')[0]
+        program = state_programs[statesII[state]][key.split('_')[1]]
+        path ='O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\{}\\{}\\{}\\Q{}\\'.format(statesII[state],program,yr,qtr)
+        if os.path.exists(path):
             pass
         else:
-            state_to_select = driver.find_element_by_xpath('//div[contains(@id,"a_ctl00_StateDropDown_DropDown")]//li[contains(text(),"{}")]'.format(statesII[report[0]]))
-            ActionChains(driver).move_to_element(state_drop_down).click().pause(1).move_to_element(state_to_select).click().perform()
-            wait.until(EC.staleness_of(state_drop_down))
-            state_drop_down = driver.find_element_by_xpath('//input[contains(@name,"$ctl00$StateDropDown")]')
-            while state_drop_down.get_attribute('value') !=statesII[report[0]]:
-                time.sleep(1)
-        selected_flag = 0
-        while selected_flag ==0:
-            try:
-                program_drop_down = lambda: driver.find_element_by_xpath('//input[contains(@name,"a$ctl00$ProgramDropDown")]')
-                program_drop_down().click()
-                time.sleep(1)
-                xpath = '//div[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_ProgramDropDown_DropDown"]//li[text()="{}"]'.format(report[1])
-                program_to_select = driver.find_element_by_xpath(xpath)
-                if program_drop_down().get_attribute('value')==report[1]:
-                    selected_flag=1
-                else:
-                    program_to_select.click()
-                    wait.until(EC.staleness_of(program_to_select))
-                    if program_drop_down().get_attribute('value')==report[1]:
-                        selected_flag=1
+            os.makedirs(path)
+        file_name = '{}_{}_{}Q{}.csv'.format(state,program,qtr,yr)
+        cld_obtained.append(file_name)
+        os.chdir(path)
+        frames[key].to_csv(file_name,index=False)
 
-            except NoSuchElementException as ex:
-                pass
-        dates_acquired = 0
-        from_q = driver.find_element_by_xpath('//input[contains(@name,"$ctl00$FYearQuarterDropDown")]')
-        from_q.click()
-        time.sleep(1)
-        while dates_acquired==0:
-            dates =[x.text for x in driver.find_elements_by_xpath('//div[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_FYearQuarterDropDown_DropDown"]//li[contains(text(),"Q")]')]
-            if len(dates[0])==0:
-                pass
-            else:
-                dates_acquired=1
-        if any(yq3 in x for x in dates)==False:
-            continue
-            #pass
-        else:
-            from_q = driver.find_element_by_xpath('//input[contains(@name,"$ctl00$FYearQuarterDropDown")]')
-            to_q = driver.find_element_by_xpath('//input[contains(@name,"$ctl00$TYearQuarterDropDown")]')
-            current_qtr = driver.find_element_by_xpath('//div[contains(@id,"a_ctl00_FYearQuarterDropDown_DropDown")]//li[text()="{}"]'.format(yq3))
-            current_qtr2 = driver.find_element_by_xpath('//div[contains(@id,"a_ctl00_TYearQuarterDropDown_DropDown")]//li[text()="{}"]'.format(yq3))
-            ActionChains(driver).move_to_element(from_q).click().pause(1).click(current_qtr).move_to_element(to_q).click().pause(1).move_to_element(current_qtr2).click().perform()
-            
-        ndcs = ','.join(report[2])
-        ndc_box = driver.find_element_by_xpath('//input[contains(@name,"$ctl00$NDCTextBox")]')
-        ndc_box.send_keys(ndcs)
-        submit = driver.find_element_by_xpath('//input[@type="submit"][@value="Submit"]')
-        submit.click()
-        wait.until(EC.staleness_of(submit))
-        ndc_box = driver.find_element_by_xpath('//input[contains(@name,"$ctl00$NDCTextBox")]')
-        ndc_box.clear()
-    driver.close()
-    return to_address
+       
+    #Send message to CMA team notifying them which invoices were  downloaded
+    from mail_maker import send_message
+    body = "The following CLD files were obtained\n"+'\n'.join(cld_obtained)
+    subject = "Florida and West Viriginia Invoices"
+    send_message(subject,body,to_address)
+
 
 
 def main():
-
-    prims_download()
-    #send_message(subject=,body=,to='burtner_abt_alec@lilly.com')
+    xpaths, state_programs, username, password, statesII, yr, qtr = prims_download()
+    #chunks = make_chunks(xpaths)
+    get_cld_reports(xpaths,username,password)
+    '''
+    Multiprocessing does not work for this site, there
+    is some kind of secuirty measure which will cause authentication to fail
+    if there is more than one open window downloading files from the site
+    
+    processes = [mp.Process(target=get_cld_reports,kwargs={'xpaths':chunk,'username':username,'password':password}) for chunk, username,password in zip(chunks,[username for x in range(len(chunks))],[password for x in range(len(chunks))])]
+    for p in processes:
+        p.start()       
+    for p in processes:
+        p.join()  
+    '''
+    make_files(state_programs,yr,qtr,statesII)
     
 if __name__=='__main__':
     main()
+    
+    
+    

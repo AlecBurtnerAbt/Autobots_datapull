@@ -28,7 +28,7 @@ import pprint
 import gzip
 import numpy as np
 import xlsxwriter as xl
-
+from mail_maker import send_message
 
 def download_reports():
     os.chdir('C:/Users/')
@@ -50,21 +50,11 @@ def download_reports():
     os.chdir('O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder')
     for file in os.listdir():
         os.remove(file)
-    driver.get('https://www.medi-cal.ca.gov/')
-    transaction_tab = driver.find_element_by_xpath('//*[@id="nav_list"]/li[2]/a')
-    transaction_tab.click()
-    wait = WebDriverWait(driver,10)
-    user_name = wait.until(EC.element_to_be_clickable((By.ID,'UserID')))
-    user_name.send_keys(username)
-    pass_word = driver.find_element_by_id('UserPW')
-    pass_word.send_keys(password)
-    submit_button = driver.find_element_by_id('cmdSubmit')
-    submit_button.click()
+
     yq = str(yr)+str(qtr)
     yq2 = str(qtr)+'Q'+str(yr)
     #navigate to the drug rebate invoice page
-    drug_rebate = driver.find_element_by_xpath('//*[@id="tabpanel_1_sublist"]/li/a')
-    drug_rebate.click()
+
     
     #get the three labeler codes.  Will have to update if labeler codes change
     lilly_code = lambda : wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="middle_column"]/div[2]/table/tbody/tr/td[2]/table/tbody/tr[2]/td/table/tbody/tr/td[2]/table/tbody/tr/td/table/tbody/tr[2]/td[2]/a')))
@@ -76,42 +66,61 @@ def download_reports():
     This block of code downloads all of the prepared reports.  The reports come in a .gz file
     and have to be decompressed, this happens after the download in the next loop.
     '''
-                        
-    for code in codes:
-        code().click()
-        retrieve = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="middle_column"]/div[2]/table/tbody/tr/td[2]/table/tbody/tr[3]/td/a[2]/b')))
-        retrieve.click()               
-        wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="left_column"]/div[1]/a/img')))     
-        soup2 = BeautifulSoup(driver.page_source,'html.parser') 
-    
-        bodies = soup2.find_all('tbody')
-        body = bodies[2]
-        rows = body.find_all('tr')
-        data = body.find_all('td')
-        data = [x.text for x in data]
-        data = np.asarray(data)
-        array_length = int(len(data)/3)
-        data = data.reshape(-1,3)
-        links = [x[0] for x in data if 'Completed' in x[1] and str(yr)+str(qtr)==x[0].split('_')[-2]]               
-        links = ["".join(x.split()) for x in links]              
-        for link in range(len(links)):
-            xpath = "//a[contains(text(),'"+links[link]+"')]"
-            DL_link = driver.find_element_by_xpath(xpath)
-            DL_link.click()            
-            while links[link] not in os.listdir():
-                time.sleep(1)
-        driver.get(r'https://rais.medi-cal.ca.gov/drug/DrugLablr.asp')
+    for user, password in zip(login_credentials.Username[:2],login_credentials.Password[:2]):      
+        driver.get('https://www.medi-cal.ca.gov/')
+        transaction_tab = driver.find_element_by_xpath('//a[text()="Transactions"]')
+        transaction_tab.click()
+        wait = WebDriverWait(driver,10)
+        user_name = wait.until(EC.element_to_be_clickable((By.ID,'UserID')))
+        user_name.send_keys(user)
+        pass_word = driver.find_element_by_id('UserPW')
+        pass_word.send_keys(password)
+        submit_button = driver.find_element_by_id('cmdSubmit')
+        submit_button.click()             
+        drug_rebate = driver.find_element_by_xpath('//*[@id="tabpanel_1_sublist"]/li/a')
+        drug_rebate.click()
         
-    '''
-    This is the loop that goes through the downloaded .gz files, unzips them, renames them
-    to the file format, makes them a text file, and then deletes the .gz file
-    '''
+        for code in codes:
+            code().click()
+            retrieve = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="middle_column"]/div[2]/table/tbody/tr/td[2]/table/tbody/tr[3]/td/a[2]/b')))
+            retrieve.click()               
+            wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="left_column"]/div[1]/a/img')))     
+            soup2 = BeautifulSoup(driver.page_source,'html.parser') 
+        
+            bodies = soup2.find_all('tbody')
+            body = bodies[2]
+            rows = body.find_all('tr')
+            data = body.find_all('td')
+            data = [x.text for x in data]
+            data = np.asarray(data)
+            array_length = int(len(data)/3)
+            data = data.reshape(-1,3)
+            links = [x[0] for x in data if 'Completed' in x[1] and str(yr)+str(qtr)==x[0].split('_')[-2]]               
+            links = ["".join(x.split()) for x in links]              
+            for link in range(len(links)):
+                xpath = "//a[contains(text(),'"+links[link]+"')]"
+                DL_link = driver.find_element_by_xpath(xpath)
+                DL_link.click()            
+                while links[link] not in os.listdir():
+                    time.sleep(1)
+                    
+            driver.get(r'https://rais.medi-cal.ca.gov/drug/DrugLablr.asp')
+        exit_link = driver.find_element_by_xpath('//a[text()="Exit"]')
+        exit_link.click()
+        
+            
+        '''
+        This is the loop that goes through the downloaded .gz files, unzips them, renames them
+        to the file format, makes them a text file, and then deletes the .gz file
+        '''
     files = os.listdir()
+    num_reports = len(files)
     for file in files:
         prog_code = file.split('_')[-1].split('.')[0]
         prog = mapper[prog_code]
         label_code = file.split('_')[2]
-        new_name = 'CA_'+prog+'_'+label_code+'_'+yq2+'.txt'
+        request_number = file.split('_')[1]
+        new_name =  'CA_{}_{}Q{}_{}_{}.txt'.format(prog,qtr,yr,label_code,request_number)
         unzipped_name = file[:-3]
         try:
             with gzip.open(file,'rt') as ref:
@@ -130,9 +139,12 @@ def download_reports():
         shutil.move(unzipped_name,path+new_name)
         os.remove(file)
     driver.close()
-    
+    return num_reports
 def main():
-    download_reports()
-
+    num_reports = download_reports()
+    subject = 'California Step Two'
+    body = 'All CLD data requested has been downloaded, there were {} files downloaded.'.format(num_reports)
+    to_address = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Notification Address', usecols='A',dtype='str',names=['Email'],header=None).iloc[0,0]
+    send_message(subject=subject,body=body,to=to_address)
 if __name__ == '__main__':
     main()    
