@@ -49,8 +49,8 @@ def stepOne():
     chromeOptions.add_experimental_option('prefs',prefs)
     driver = webdriver.Chrome(chrome_options = chromeOptions, executable_path=r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\chromedriver.exe')
     os.chdir('O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder')
-    for file in os.listdir():
-        os.remove(file)
+    #for file in os.listdir():
+        #os.remove(file)
     time_stuff = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx', sheet_name = 'Year-Qtr',use_cols='A:B')
     yr = time_stuff.iloc[0,0]
     qtr = time_stuff.iloc[0,1]
@@ -171,10 +171,16 @@ def stepOne():
                         else:
                             pass
                 if file_type == '.txt':
-                    with open(file) as ax:
-                        lines = ax.readlines()
-                        ndcs = list(set([x[6:17] for x in lines]))
-                        report_dict.update({report:ndcs})
+                    read_flag = 0
+                    while read_flag==0:
+                        try:
+                            with open(file) as ax:
+                                lines = ax.readlines()
+                                ndcs = list(set([x[6:17] for x in lines]))
+                                report_dict.update({report:ndcs})
+                                read_flag=1
+                        except PermissionError as err:
+                            time.sleep(1)
                 path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Invoices\\Pennsylvania\\'+report+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
                 if os.path.exists(path)==False:
                     os.makedirs(path)
@@ -290,8 +296,8 @@ def download_reports():
     chromeOptions.add_experimental_option('prefs',prefs)
     driver = webdriver.Chrome(chrome_options = chromeOptions, executable_path=r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\chromedriver.exe')
     os.chdir('O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder')
-    for file in os.listdir():
-        os.remove(file)
+    #for file in os.listdir():
+        #os.remove(file)
     time_stuff = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx', sheet_name = 'Year-Qtr',use_cols='A:B')
     yr = time_stuff.iloc[0,0]
     qtr = time_stuff.iloc[0,1]
@@ -368,7 +374,13 @@ def download_reports():
                 pass
             else:
                 flag = 1
-        temp_df = pd.read_excel(download_name,skipfooter=3)
+        read_flag =0
+        while read_flag==0:
+            try:
+                temp_df = pd.read_excel(download_name,skipfooter=3)
+                read_flag=1
+            except PermissionError as err:
+                time.sleep(1)
         temp_df = temp_df.dropna(axis=0,how='all')
         if len(temp_df)==0:
             continue
@@ -382,13 +394,13 @@ def download_reports():
     for splitter in splitters:
         frame = master_df[master_df['Program']==splitter]
         path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Pennsylvania\\'+splitter+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
-        file_name = 'PA_'+splitter+'_'+str(qtr)+'Q'+str(yr)+'.csv'
+        file_name = 'PA_'+splitter+'_'+str(qtr)+'Q'+str(yr)+'.xlsx'
         if os.path.exists(path)==False:
             os.makedirs(path)
         else:
             pass
         os.chdir(path)
-        frame.to_csv(file_name)
+        frame.to_excel(file_name, engine='xlsxwriter',index=False)
     #now delete all the files that have been downloaded
     deletes = lambda: driver.find_elements_by_xpath('//table[@id="reportsResults"]//a[@title="Delete"][@class="btn"]')
     for i in range(len(deletes())):

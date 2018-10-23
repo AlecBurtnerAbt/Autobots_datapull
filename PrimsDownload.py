@@ -134,7 +134,8 @@ def prims_download():
     state_programs = {}
     invoices_obtained = []
     
-    
+    invoice_request_page = lambda: wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="ctl00_SPWebPartManager1_g_967e6faf_f673_482f_95d3_d22fbf4faf7a_ctl00_rtsRequest"]/div/ul/li[2]/a/span/span/span')))
+    invoice_request_page().click()  
     #have to select the state to get the state programs to populate
     
     #The below block of code is creating the state: programcode:program name dictionary

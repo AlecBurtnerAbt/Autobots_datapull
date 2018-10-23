@@ -30,34 +30,26 @@ import gzip
 import numpy as np
 import xlsxwriter as xl
 from grabloid import Grabloid
-
-class AlabamaGrabloid(Grabloid):
+from pandas.errors import EmptyDataError
+class Alabama_Grabloid(Grabloid):
     def __init__(self):
         super().__init__(script='Alabama')
         self.usernames = self.credentials.Username
-    
+        
     def pull(self):
         driver = self.driver
         wait = self.wait
-        yr = self.yr
-        qtr = self.qtr
-        username = self.credentials.Username
-        password = self.password
-        wait = self.wait
-        #input user id and password.  Have to loop through
-        #each login ID
-        invoices_obtained = []
-        for account in username:
+        invoices_obtained=[]
+        for account in self.usernames:
             driver.get('https://www.medicaid.alabamaservices.org/ALPortal/')
             #Move to the drop down, hover and click "Secure Site"
             drop_down =wait.until(EC.element_to_be_clickable((By.XPATH,'//a[@title="Account"]')))
-            ActionChains(driver).move_to_element(drop_down).perform()
-            secure_site = wait.until(EC.element_to_be_clickable((By.XPATH,'//a[@title="Secure Site"]')))
-            secure_site.click()
+            secure_site = driver.find_element_by_xpath('//a[@title="Secure Site"]')
+            ActionChains(driver).move_to_element(drop_down).move_to_element(secure_site).click().perform()
             user = driver.find_element_by_xpath('//input[contains(@name,"userName")]')
             user.send_keys(account)
             pw = driver.find_element_by_xpath('//input[contains(@name,"password")]')
-            pw.send_keys(password)
+            pw.send_keys(self.password)
             login_button = driver.find_element_by_xpath('//a[contains(text(),"login")]')
             login_button.click()
         
@@ -68,40 +60,46 @@ class AlabamaGrabloid(Grabloid):
         
             #Drop down menu permits selection of invoice
             #type.  Get options and iterate through. 
-    
+            
             types = lambda: wait.until(EC.element_to_be_clickable((By.XPATH,'//select[contains(@name,"TransactionType")]')))    
             types_select = lambda: Select(types())   
             types_to_get = [1,2,3]
             for report in types_to_get:
                 types_select().select_by_index(report)  
                 search_button = lambda: driver.find_element_by_xpath('//a[@title="Search using the specified criteria"]')
-                search_button().click()
+                button = search_button()
+                button.click()
+
                 try:
                     alert = driver.switch_to.alert
                     alert.accept()
                 except NoAlertPresentException as ex:
                     pass
+                wait.until(EC.staleness_of(button))
                 if report !=1:
                     invoice_period = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[contains(@name,"InvoicePeriod")]')))
                     invoice_period.clear()            
-                    invoice_period.send_keys(str(qtr)+'/'+str(yr))
+                    invoice_period.send_keys(str(self.qtr)+'/'+str(self.yr))
                     search_button().click()
                     file = driver.find_element_by_xpath('//tr[@class="iC_DataListItem"]//td[2]')            
                     file.click()
-                    time.sleep(3)
+                    while len(os.listdir())==0:
+                        time.sleep(1)
                     while any(map((lambda x: 'RBT' in x), os.listdir()))==False:
+                        time.sleep(1)
+                    while any(map((lambda x: 'crdownload' in x),os.listdir())) or any(map((lambda x: 'tmp' in x),os.listdir())):
                         time.sleep(1)
                     file = os.listdir()[0]
                     label_code = file.split('.')[1]            
                     
                     if file[-3:]=='pdf':
-                        name = label_code+'_'+str(yr)+'Q'+str(qtr)+file[-4:]
+                        name = label_code+'_'+str(self.yr)+'Q'+str(self.qtr)+file[-4:]
                     else:
                         with open(file) as ax:
                             lines = ax.readlines()
                         ndcs = list(set([x[6:17] for x in lines])) 
-                        name = label_code+'_'+str(yr)+'Q'+str(qtr)+'.txt'
-                    path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Invoices\\Alabama\\CMS\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+                        name = label_code+'_'+str(self.yr)+'Q'+str(self.qtr)+'.txt'
+                    path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Invoices\\Alabama\\CMS\\'+str(self.yr)+'\\'+'Q'+str(self.qtr)+'\\'
                     if os.path.exists(path)==False:
                         os.makedirs(path)
                     else:
@@ -114,24 +112,28 @@ class AlabamaGrabloid(Grabloid):
                     time.sleep(3)
                     while any(map((lambda x: 'RBT' in x), os.listdir()))==False:
                         time.sleep(1)
+                    while any(map((lambda x: 'crdownload' in x),os.listdir())):
+                        time.sleep(1)
                     for file in os.listdir():
-                        path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Invoices\\Alabama\\CMS\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+                        path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Invoices\\Alabama\\CMS\\'+str(self.yr)+'\\'+'Q'+str(self.qtr)+'\\'
                         name = 'Invoice Cover Letter.pdf'
                         shutil.move(file,path+name)
+                        invoices_obtained.append(name)
                 #if the file is the rtf format use it get get NDCS
                 if file[-4:]=='.rtf':
                     #now get the cld for each NDC
                     switch = 0
                     trade_files = wait.until(EC.element_to_be_clickable((By.XPATH,'//a[@title="Trade Files"]')))
                     cld = driver.find_element_by_xpath('//a[@title="Claim Level Detail"]')
-                    counter =0
                     while switch==0:
                         ActionChains(driver).move_to_element(trade_files).move_to_element(cld).click().perform() 
+                        time.sleep(3)
+                        counter = 0 
                         try:
                             alert = driver.switch_to.alert
                             alert.accept()
-                            counter+=1
-                            time.sleep(counter*2)
+                            counter +=1
+                            time.sleep(1*counter)
                         except NoAlertPresentException as ex:
                             switch=1
                     ndc_box = lambda: driver.find_element_by_xpath('//input[contains(@id,"CriteriaPanel_NDC")]')
@@ -147,7 +149,7 @@ class AlabamaGrabloid(Grabloid):
                             cont_flag = 0
                             ndc_box().clear()
                             ndc_box().send_keys(drug)
-                            invoice_period().send_keys(str(qtr)+'/'+str(yr))
+                            invoice_period().send_keys(str(self.qtr)+'/'+str(self.yr))
                             search_button().click()
                             if option == 'Supplemental':
                                 try:
@@ -161,10 +163,9 @@ class AlabamaGrabloid(Grabloid):
                                 continue
                             else:
                                 pass
-                      
+                            download_link = wait.until(EC.element_to_be_clickable((By.XPATH,'//a[text()="Download File"]')))                    
                             success_flag = 0 
                             while success_flag == 0:
-                                download_link = wait.until(EC.element_to_be_clickable((By.XPATH,'//a[text()="Download File"]')))  
                                 download_link.click()
                                 time.sleep(3)
                                 if len(os.listdir()) < 1:
@@ -172,7 +173,8 @@ class AlabamaGrabloid(Grabloid):
                                 else:
                                     success_flag = 1
                                     
-                                    
+                            while any((map((lambda x: 'crdownload' in x), os.listdir()))) or any(map((lambda x: 'tmp' in x),os.listdir())):
+                                time.sleep(1)
                             while 'ClaimLevelDetail.csv' not in os.listdir():
                                 time.sleep(1)           
                             flag = 0
@@ -199,28 +201,61 @@ class AlabamaGrabloid(Grabloid):
                             temp = temp.drop([dp])
                             master_frame = master_frame.append(temp)
                             os.remove('ClaimLevelDetail.csv')
-                        file_name = 'AL_{}_{}Q{}_{}_CLD.csv'.format(option,str(qtr),str(yr),label_code)
+                        file_name = f'AL_{option}_{self.qtr}Q{self.yr}_{label_code}.csv'
                         master_frame.to_csv(file_name,index=False)
-                        path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Alabama\\'+option+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+                        path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Alabama\\'+option+'\\'+str(self.yr)+'\\'+'Q'+str(self.qtr)+'\\'
                         if os.path.exists(path)==False:
                             os.makedirs(path)
                         else:
                             pass
                         shutil.move(file_name,path+file_name)
+           
+                        
+                    
             drop_down =wait.until(EC.element_to_be_clickable((By.XPATH,'//a[@title="Account"]')))
-            ActionChains(driver).move_to_element(drop_down).perform()
-            logoff = driver.find_element_by_xpath('//a[@title="Logoff"]')
-            logoff.click()
+            log_off = driver.find_element_by_xpath('//a[@title="Logoff"]')
+            log_off_able = 0
+            while log_off_able==0:
+                ActionChains(driver).move_to_element(drop_down).move_to_element(log_off).click().perform() 
+                time.sleep(3)
+                try:
+                    alert = driver.switch_to.alert
+                    alert.accept()
+                except NoAlertPresentException as ex:
+                    log_off_able=1
+                    pass
         driver.close()
         os.removedirs(self.temp_folder_path)
         return invoices_obtained
-        
+
+    def morph_cld(self):
+        path = 'O:\\M-R\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Alabama\\'
+        for root, folders, files in os.walk(path):
+            for file in files:
+                try:
+                    if file[-3:]=='csv':
+                        df_path = root+'\\'+file
+                        df = pd.read_csv(df_path,dtype=str)
+                        new_name = root+'\\'+file[:-4]+'.xlsx'
+                        df.to_excel(new_name, index=False)
+                        os.remove(root+'\\'+file)
+                except EmptyDataError as err:
+                    data = ['This file was empty']
+                    empty_df = pd.DataFrame(data)
+                    new_name = root+'\\'+file[:-3]+'xlsx'
+                    empty_df.to_excel(new_name, engine='xlsxwriter')
+                    
 def main():
-    a = AlabamaGrabloid()
-    invoices = a.pull()
-    a.send_message(invoices)
+    grabber = Alabama_Grabloid()
+    invoices = grabber.pull()
+    grabber.morph_cld()
+    grabber.send_message(invoices)
 if __name__=='__main__':
     main()
+    
+    
+    
+    
     
     
     

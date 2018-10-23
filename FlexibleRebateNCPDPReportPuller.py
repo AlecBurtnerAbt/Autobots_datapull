@@ -29,7 +29,11 @@ import pprint
 import gzip
 import numpy as np
 import xlsxwriter as xl
+from grabloid import Grabloid
 
+def FlexGrabloid():
+    def __init__(self):
+        super().__init__(script='DrugRebate.com')
 def pull():
     os.chdir('C:/Users/')
     
@@ -153,12 +157,7 @@ def pull():
     data = np.asarray(data)
     data = data.reshape(-1,9)
     data_asframe = pd.DataFrame(data,columns=columns)
-    grouped = data_asframe.groupby(['Payer','Program','Labeler'])
-    
-    file_dict = {k:v for k,v in zip(data[:,1],data[:,2:])}
-    
     #This built the file naming dictionary, keys are teh invoice number
-    
     all_invoices = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@name="downloadWhat"][@value="all"]')))
     all_invoices.click()    
     download_button = driver.find_element_by_xpath('//input[@value="Download Invoices"]')
@@ -236,20 +235,19 @@ def pull():
     files = os.listdir()
     for file in files:
         key = file.split('.')[0]
+        abbrev = file.split['.'][1][:2]
         file_data = file_dict[key]
-        if file.split('.')[1][:2] in states.keys():
-            state = states[file.split('.')[1][:2]]
-        elif file_data[1].split(' ')[0] in states.values():
-            state = file_data[1].split(' ')[0]
-        else:
-            state = 'New Mexico'
-        if file_data[4] =='NCPDP Claims Own':
+        state = states[abbrev]
+        file_type_abbrev = file.split['.'][2]
+        program = file.split['.'][1][2:]
+        labeler = data_asframe['Labeler'][data_asframe['Invoice']==key][0]
+        if file_type_abbrev =='NCO':
             file_type = 'Claims'
         else:
             file_type = 'Invoices'
         ext = file[-4:]
-        path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+file_type+'\\'+state+'\\'+file_data[2]+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
-        file_name = file_data[2]+'_'+file_data[3]+'_'+file_data[0]+ext
+        path = f'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\{file_type}\\{state}\\{program}\\{yr}\\Q{qtr}\\'
+        file_name = f'{state}_{program}_{qtr}Q{yr}_{labeler}{ext}'
         if os.path.exists(path)==False:
             os.makedirs(path)
         else:

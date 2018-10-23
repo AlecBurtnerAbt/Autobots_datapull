@@ -46,6 +46,8 @@ from xlrd.biffh import XLRDError
 import xlsxwriter as xl
 import requests
 from requests.auth import HTTPBasicAuth
+
+
 os.chdir('C:/Users/')
 chromeOptions = webdriver.ChromeOptions()
 prefs = {'download.default_directory':'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder',
@@ -54,8 +56,8 @@ prefs = {'download.default_directory':'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic 
 chromeOptions.add_experimental_option('prefs',prefs)
 driver = webdriver.Chrome(chrome_options = chromeOptions, executable_path=r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\chromedriver.exe')
 os.chdir('O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder')
-for file in os.listdir():
-    os.remove(file)
+#for file in os.listdir():
+    #os.remove(file)
 time_stuff = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx', sheet_name = 'Year-Qtr',use_cols='A:B')
 yr = time_stuff.iloc[0,0]
 qtr = time_stuff.iloc[0,1]
@@ -95,7 +97,7 @@ code_select = lambda: Select(code_dropdown())
 codes = [x.text for x in code_select().options][1:]
 type_dropdown = lambda: WebDriverWait(driver,10).until(EC.element_to_be_clickable((By.ID,'docType')))
 type_select = lambda: Select(type_dropdown())
-master_dict = dict.fromkeys(codes)
+master_list = []
 time_stamp = lambda: driver.find_element_by_xpath('//input[@name="period"]')
 values = driver.find_elements_by_xpath('//select[@id="docType"]//option')
 values = [x.get_attribute('value') for x in values if int(x.get_attribute('value'))>1]
@@ -183,7 +185,7 @@ for code in codes:
             
                             lines = ax.readlines()
                             xxx = list(set([x[6:17] for x in lines]))
-                            [ndcs.append(x) for x in xxx]
+                            [master_list.append((report,code,x)) for x in xxx]
                             read_success=1
                     except PermissionError as ex:
                         pass
@@ -195,122 +197,166 @@ for code in codes:
                 pass
             file_name = 'WY_'+report+'_'+code+'_'+str(qtr)+'Q'+str(yr)+file_type
             shutil.move(file,path+file_name)
-    master_dict.update({code:ndcs})
+
 
      #############################################CLD below
 
 reports_tab = driver.find_element_by_xpath('//a[text()="Reports"]')       
 reports_tab.click()                
-report = lambda: driver.find_element_by_xpath('//select[@id="reportList"]')
-report_select = lambda: Select(report())
+
 not_ready = []
+master_df = pd.DataFrame()
 
-for labeler in list(master_dict.keys()):
-    master_df = pd.DataFrame()
-    print('a')
-    for rep in [x.text for x in report_select().options][1:]:
-        report_select().select_by_visible_text(rep)
-        types =lambda: wait.until(EC.element_to_be_clickable((By.XPATH,'//select[@id="docType"]')))
-        types_select = lambda: Select(reports())    
-        Ts = [x.text for x in types_select().options[1:]]
-        values = [x.get_attribute('value') for x in types_select().options if int(x.get_attribute('value'))>1]
-        for T,value in zip(Ts,values):
-            for ndc in master_dict[labeler]:
-                print('b')
-                if len(ndc)<2:
-                    continue
-                else:
-                    pass
-                
-                print('c')
-                ndc_in = wait.until(EC.presence_of_element_located((By.XPATH,'//input[@name="ndc"]')))
-                ndc_in.send_keys(ndc)
-                time.sleep(1)
-   
-                print('d')
+#master list is composed of tuples which contain (program, label code, NDC)
 
-            
-                types_select().select_by_visible_text(T)
-                print('e')
-                time_stamp = driver.find_element_by_xpath('//input[@name="rpuStart"]')
-                time_stamp.send_keys(yq)
-                submit_button= driver.find_element_by_xpath('//input[@value="Submit"]')
-                submit_button.click()
-                accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@value="Accept"]')))
-                accept.click()
-                print('f')
-                wait.until(EC.staleness_of(accept))
-                success = 0
-                while success==0:
-                    try:
-                        print('g')
-                        download = wait.until(EC.element_to_be_clickable((By.XPATH,'//tr[contains(text(),"'+ndc+'"]//a[@title="Download"]')))
-                        download.click()
-                        if T=='JCode':
-                            name = 'EXT_JCODE_CLD-'+ndc+'-WY-'+yq+'-'+value+'.xls'
-                        else:    
-                            name = 'EXT_Claim_Level_Detail_Report-'+ndc+'-WY'+yq+'-'+value+'.xls'
-                                
-                        while any(map((lambda x: 'EXT_Claim_Level' in x),os.listdir()))==False:
-                            time.sleep(1)
-                        file = os.listdir()[0]
-                        stats = os.stat(file)
-                        if stats.st_size >5:
-                            print('h')
-                            temp = pd.read_excel(file)
-                        else:
-                            print('i')
-                            continue
-                        print('j')
-                        master_df = master_df.append(temp)
-                        os.remove(file)
-                        remove_download = driver.find_element_by_xpath('//a[@title="Delete"]')
-                        remove_download.click()
-                        alert = driver.switch_to.alert
-                        alert.accept()
-                        success=1
-                    except TimeoutException as ex:
-                        try:
-                            error = driver.find_element_by_xpath('//li[text()="An error has occurred"]')
-                            driver.get('https://rsp.wygov.changehealthcare.com/RebateServicesPortal/reports/index')
-                            report_select().select_by_visible_text(rep)
-                            types_select().select_by_visible_text(T)
-                            ndc_in = wait.until(EC.presence_of_element_located((By.XPATH,'//input[@name="ndc"]')))
-                            ndc_in.send_keys(ndc)
-                            submit_button= driver.find_element_by_xpath('//input[@value="Submit"]')
-                            submit_button.click()
-                            accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@value="Accept"]')))
-                            accept.click()
-                        except NoSuchElementException as ex:
-                            print('j')
-                            not_ready.append(ndc)
-                            driver.refresh()
-                            print('CLD for '+str(ndc)+' is not ready, it will be ready tomorrow.')
-                            report_select().select_by_visible_text(rep)
-                            success=1
-    path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Wyoming\\'+lly_prog+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
-    file_name = 'WY_'+labeler+'_'+rep+'_'+str(qtr)+'Q'+str(yr)+'.csv'
-    if os.path.exists(path)==False:
-        os.makedirs(path)
+for item in master_list:
+    program = item[0]
+    label_code = item[1]
+    NDC = item[2]
+    reports = wait.until(EC.element_to_be_clickable((By.XPATH,'//select[@id="reportList"]')))
+    reports_select = Select(reports)
+    #make sure no bad data is passed which will crash the program
+    if len(NDC) <11:
+        continue
+    if program=='JCode':
+        reports_select.select_by_index(2)
     else:
-        pass
-    master_df.to_csv(path+file_name,index=False)
+        reports_select.select_by_index(1)
+    claim_counter=0
+    claim_select =0
+    while claim_counter <10 and claim_select==0:
+        try:
+            claim_type_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH,'//select[@id="docType"]')))
+            claim_type_dropdown_select = Select(claim_type_dropdown)
+            claim_type_dropdown_select.select_by_visible_text(program)
+            claim_select=1
+        except NoSuchElementException as ex:
+            counter+=1
+            time.sleep(1)
+    ndc_in = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@id="NDCReport"]')))
+    ndc_in.send_keys(NDC)
+    date = driver.find_element_by_xpath('//input[@id="RpuStartReport"]')
+    date.send_keys(yq)
+    submit = driver.find_element_by_xpath('//input[@id="reportSub"]')
+    submit.click()
+    warning_button = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@id="acceptWarning"]')))
+    warning_button.click()
     
-subject = 'Wyoming CLD'
-body = 'The following CLD were not ready and can be downloaded tomorrow:'
-body2 = ''.join(['NDC: %s \n' %(x) for x in not_ready])
-recipient = 'b2b_cma_llymedicaid@lilly.com'
-base = 0x0
-obj = Dispatch('Outlook.Application')
-newMail = obj.CreateItem(base)
-newMail.Subject = subject
-newMail.Body = body+'\n'+body2
-newMail.To = recipient
-newMail.display()
-newMail.Send()
-        
 
-import mechanicalsoup
+def download_reports(self):
+    driver = self.driver
+    #Login with provided credentials
+    driver.get('https://rsp.wygov.changehealthcare.com/RebateServicesPortal/login/home?goto=http://rsp.wygov.changehealthcare.com/RebateServicesPortal')   
+    
+    #Now login
+    
+    user = driver.find_element_by_xpath('//input[@id="username"]')
+    user.send_keys(username)
+    pass_word = driver.find_element_by_id('password')
+    pass_word.send_keys(password)
+    login = driver.find_element_by_id('submit')
+    login.click()
+    
+    wait = WebDriverWait(driver,10)
+    wait2 = WebDriverWait(driver,2)
+    accept = wait.until(EC.element_to_be_clickable((By.ID,'terms')))
+    accept.click()
+    reports_tab = driver.find_element_by_xpath('//a[text()="Reports"]')       
+    reports_tab.click()                
+    report = lambda: driver.find_element_by_xpath('//select[@id="reportList"]')
+    report_select = lambda: Select(report())
+    
+    types = driver.find_element_by_xpath('//select[@id="docType"]')
+    types_select = Select(types)
+    programs = [x.text.replace(' ','_') for x in types_select.options]
+    values = [x.get_attribute('value') for x in driver.find_elements_by_xpath('//select[@id="docType"]/option')]
+    mapper = dict(zip(programs,values))    
+    #Helper function to return boolean if report is ready
+    def checker(element,xpath):
+        try:
+            EC.presence_of_element_located(element.find_element_by_xpath(xpath))
+            return True
+        except NoSuchElementException as ex:
+            return False
+    #Below is where the script finds the reports, downloads, and moves them
+    rows = driver.find_elements_by_xpath('//table[@id="reportsResults"]/tbody/tr')
+    rows = [row for row in rows if checker(row,'td//a//span[text()="Download Report"]')==True]
+    
+    #now that we have rows only for where reports are ready we can move forward
+    names = [x.find_element_by_xpath('td[1]').text for x in rows]
+    links = [x.find_element_by_xpath('td//a[@href="#"]') for x in rows]
+    master_df = pd.DataFrame()
+    
+    for name, link in zip(names, links):
+        #get info for file name
+        ndc = name.split(' ')[7]
+        state = name.split(' ')[8]
+        if 'JCode' in name:
+            program = 'JCode'
+        else:
+            program = name.split(' ')[10]
+        value = mapper[program]
+        #build the file name to look for in the download folder, 
+        #is a different size depending on what kind of file it is
+        if program != 'JCode':
+            first_half = '_'.join(name.split(' ')[:5])
+            second_half = '-'.join(name.split(' ')[-4:]).replace(program,mapper[program])
+            download_name = '-'.join([first_half,second_half])+'.xls'
+        else:
+            first_half = '_'.join(name.split(' ')[:3])
+            second_half = '-'.join(name.split(' ')[-4:]).replace(program,mapper[program])
+            download_name = '-'.join([first_half,second_half])+'.xls'
+        #download the file
+        flag = 0
+        while flag ==0:
+            link.click()
+            counter = 0
+            while download_name not in os.listdir() and counter<21:
+                time.sleep(1)
+                counter+=1
+            if download_name not in os.listdir():
+                pass
+            else:
+                flag = 1
+        read_flag =0
+        while read_flag==0:
+            try:
+                temp_df = pd.read_excel(download_name,skipfooter=3)
+                read_flag=1
+            except PermissionError as err:
+                time.sleep(1)
+        temp_df = temp_df.dropna(axis=0,how='all')
+        if len(temp_df)==0:
+            continue
+        else:
+            pass
+        temp_df['NDC']= ndc
+        temp_df['Program'] = program
+        master_df = master_df.append(temp_df)
+    frames = []
+    splitters = master_df['Program'].unique().tolist()  
+    for splitter in splitters:
+        frame = master_df[master_df['Program']==splitter]
+        path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Wyoming\\'+splitter+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+        file_name = 'WY_'+splitter+'_'+str(qtr)+'Q'+str(yr)+'.xlsx'
+        if os.path.exists(path)==False:
+            os.makedirs(path)
+        else:
+            pass
+        os.chdir(path)
+        frame.to_excel(file_name, engine='xlsxwriter',index=False)
+    #now delete all the files that have been downloaded
+    deletes = lambda: driver.find_elements_by_xpath('//table[@id="reportsResults"]//a[@title="Delete"][@class="btn"]')
+    for i in range(len(deletes())):
+        canary = driver.find_element_by_xpath('//input[@id="reportSub"]')
+        deletes()[0].click()
+        alert = driver.switch_to.alert
+        alert.accept()
+        wait.until(EC.staleness_of(canary))       
+    driver.close()
+
+    
+
 
 
 

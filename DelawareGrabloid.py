@@ -100,7 +100,7 @@ class DelawareGrabloid(Grabloid):
                         download = wait2.until(EC.element_to_be_clickable((By.ID,'downloadLink')))
                         download.click() 
                         ext = '.txt'
-                        file_name = file_name+ext
+                        file_name = f'DE_{lilly_program}_{qtr}Q{yr}_{label_code}{ext}'
                         try:
                             close_pop_up = wait.until(EC.element_to_be_clickable((By.XPATH,'//div//ips-verifier//div//div//div//i')))
                             close_pop_up.click()
@@ -152,13 +152,59 @@ class DelawareGrabloid(Grabloid):
                     time.sleep(1.5)
             folders = wait.until(EC.element_to_be_clickable((By.ID,'field_gotofolder')))
             folders_select = Select(folders)
-            folders_select.select_by_visible_text('/ Distribution') 
-        driver.close()
+            folders_select.select_by_visible_text('/ Distribution')
+        q_flag = 0
+        while q_flag==0:
+            try:
+                self.driver.close()
+                q_flag=1
+            except MaxRetryError as err:
+                continue
+        os.chdir('O:\\')
+        os.removedirs(self.temp_folder_path)
         return(invoices)
+        
+    def morph_invoices(self):
+        path = f'O:\\M-R\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Delaware\\'
+        for root, folders, files in os.walk(path):
+                for file in files:
+                    if file[-3:]=='txt':
+                        with open(root+'\\'+file) as f:
+                            file_data = []
+                            lines = f.readlines()
+                            for line in lines:
+                                CDE_NDC = line[:11]
+                                CDE_CLM_TYPE = line[11]
+                                CDE_ICN = line[12:25]
+                                IND_ADJ = line[25]
+                                NUM_DTL = line[26:30]
+                                CDE_PROC = line[30:36]
+                                ID_PROVIDER = line[36:51]
+                                CDE_FUND_CODE = line[51:55]
+                                DTE_FDOS = line[55:63]
+                                DTE_PAID = line[63:71]
+                                NUM_DAYS_SUPPLY = line[71:75]
+                                QTY_UNITS_BILLED = line[75:89]
+                                AMT_BILLED = line[89:100]
+                                AMT_PD_MCAID = line[100:111]
+                                AMT_PD_NON_MCAID = line[111:122]
+                                IND_TPL = line[122]
+                                AMT_ALWD = line[123:134]
+                                DTE_ADJUDICATED = line[134:]
+                                file_data.append([CDE_NDC,CDE_CLM_TYPE,CDE_ICN,IND_ADJ,NUM_DTL,CDE_PROC,ID_PROVIDER,CDE_FUND_CODE,DTE_FDOS,
+                                                  DTE_PAID,NUM_DAYS_SUPPLY,QTY_UNITS_BILLED,AMT_BILLED,AMT_PD_MCAID,AMT_PD_NON_MCAID,
+                                                  IND_TPL,AMT_ALWD,DTE_ADJUDICATED])
+                        file_name = file[:-4]+'.xlsx'
+                        df = pd.DataFrame(file_data,columns=['CDE_NDC','CDE_CLM_TYPE','CDE_ICN','IND_ADJ','NUM_DTL','CDE_PROC','ID_PROVIDER','CDE_FUND_CODE','DTE_FDOS',
+                                          'DTE_PAID','NUM_DAYS_SUPPLY','QTY_UNITS_BILLED','AMT_BILLED','AMT_PD_MCAID','AMT_PD_NON_MCAID',
+                                          'IND_TPL','AMT_ALWD','DTE_ADJUDICATED'])
+                        placement_path = root+'\\'+file_name
+                        df.to_excel(placement_path,index=False)
+                        os.remove(root+'\\'+file)        
 def main():
     grabber = DelawareGrabloid()
     invoices = grabber.pull()
     grabber.send_message(invoices)
-    
+    grabber.morph_invoices()
 if __name__ =='__main__':
     main()

@@ -37,19 +37,20 @@ class CaliforniaGrabloid(Grabloid):
     def __init__(self):
         super().__init__(script='California')
         script = self.script
-        self.mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='{}'.format(self.script), usecols='D:G',dtype='str')
+        self.mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='{}'.format(self.script), usecols='E:G',dtype='str')
         
     def pull(self):
         driver = self.driver
         yr = self.yr
         qtr = self.qtr
+        program_mapper = self.mapper
         login_credentials = self.credentials
+        wait = self.wait
         username = login_credentials.iloc[0,0]
         password = login_credentials.iloc[0,1]
         driver.get('https://www.medi-cal.ca.gov/')
         transaction_tab = driver.find_element_by_xpath('//*[@id="nav_list"]/li[2]/a')
         transaction_tab.click()
-        wait = WebDriverWait(driver,10)
         user_name = wait.until(EC.element_to_be_clickable((By.ID,'UserID')))
         user_name.send_keys(username)
         pass_word = driver.find_element_by_id('UserPW')
@@ -103,12 +104,7 @@ class CaliforniaGrabloid(Grabloid):
             while file_name not in os.listdir(): 
                 all_report.click()
                 time.sleep(5)
-            '''while any('.crdownload' in x for x in os.listdir())==True:
-                time.sleep(3)
-            while any('.tmp' in x for x in os.listdir())==True:
-                time.sleep(3)'''
         
-                
             list_of_files = os.listdir()   
             latest_file = sorted(list_of_files, key=os.path.getctime)[-1]
             latest_file = os.path.abspath(latest_file)
@@ -206,7 +202,9 @@ class CaliforniaGrabloid(Grabloid):
          
             
             
-        
+        #gate check to make sure any debug files chromdriver opens up don't try and get read
+        #this shouldn't be an issue due to directory changing upon instantiation of the 
+        #Grabloid class but remains in the code just in case
         for file in os.listdir():
             if file == 'debug.log':
                 continue
@@ -234,36 +232,54 @@ class CaliforniaGrabloid(Grabloid):
             copy_of_invoice().click()          
             url = driver.current_url
             for program in master_dict[labeler]:
-                drop_down = lambda: wait.until(EC.element_to_be_clickable((By.ID,'Program')))
-                drop_down_select = lambda: Select(drop_down())
-                drop_down_select().select_by_value(program)
-                program_name = mapper2[program]
-                quarter = driver.find_element_by_id('Qtr')
-                quarter.send_keys(qtr)
-                year = driver.find_element_by_id('Year')
-                year.send_keys(yr)
-                submit_button = driver.find_element_by_xpath('//*[@id="frmDrugRecs"]/table[2]/tbody/tr[6]/td/input[1]')            
-                submit_button.click()
-                ok = wait.until(EC.element_to_be_clickable((By.ID,'btnOK')))
-                ok.click()            
-                while (any(map((lambda x: '.crd' in x),os.listdir()))==True or any(map((lambda x: '.tmp' in x),os.listdir()))==True):
-                    time.sleep(1)
-                files = os.listdir()
-                latest_file = max(os.listdir(),key=os.path.getctime)
-                file_name = mapper[program]+'_'+yr+'_'+qtr+'_'+prefix+'.pdf'
-                path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Invoices\\California\\'+mapper[program]+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
-                shutil.move(latest_file,path+file_name)
-                driver.get(url)
+                success_flag = 0
+                while success_flag ==0:
+                    try:
+                        drop_down = lambda: wait.until(EC.element_to_be_clickable((By.ID,'Program')))
+                        drop_down_select = lambda: Select(drop_down())
+                        drop_down_select().select_by_value(program)
+                        program_name = mapper2[program]
+                        quarter = driver.find_element_by_id('Qtr')
+                        quarter.send_keys(qtr)
+                        year = driver.find_element_by_id('Year')
+                        year.send_keys(yr)
+                        submit_button = driver.find_element_by_xpath('//*[@id="frmDrugRecs"]/table[2]/tbody/tr[6]/td/input[1]')            
+                        submit_button.click()
+                        ok = wait.until(EC.element_to_be_clickable((By.ID,'btnOK')))
+                        ok.click()           
+                        counter = 0
+                        got_it = 0
+                        while counter <11 and got_it ==0:
+                            while (any(map((lambda x: '.crd' in x),os.listdir()))==True or any(map((lambda x: '.tmp' in x),os.listdir()))==True):
+                                time.sleep(1)
+                                counter+=1
+                            got_it=1
+                        files = os.listdir()
+                        latest_file = max(os.listdir(),key=os.path.getctime)
+                        file_name = mapper[program]+'_'+yr+'_'+qtr+'_'+prefix+'.pdf'
+                        path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Invoices\\California\\'+mapper[program]+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+                        shutil.move(latest_file,path+file_name)
+                        driver.get(url)
+                        if counter<11:                            
+                            success_flag=1
+                        else:
+                            continue
+                    except TimeoutException or WebDriverException as ex:
+                            driver.get(url)
+                            continue
+                    except ValueError as err:
+                            driver.get(url)
+                            continue
             driver.get('https://rais.medi-cal.ca.gov/drug/DrugLablr.asp')     
             
         '''
         Now to move the downloaded files into their appropriate lan drive folders
         '''
-
+        #these lines build the datalist to send to .send_message()
         aaa = list(map((lambda x: x.keys()),ref_dict.values()))
         aaa = list(map((lambda x: list(x)),aaa))
         bbb = dict(zip(ref_dict.keys(),aaa))
-        invoices_obtained = [f'{k} : {v}' for k,v in bbb]
+        invoices_obtained = ['For %s label code: %s' %(k,v) for k,v in bbb.items()]
                 
                 
                 
@@ -498,6 +514,7 @@ class CaliforniaGrabloid(Grabloid):
                             return_to_transactions = driver.find_element_by_xpath('//*[@id="frmRet"]/input')
                             return_to_transactions.click()
         driver.close()
+        os.removedirs(self.temp_folder_path)
         return invoices_obtained
 def main():
     grabber = CaliforniaGrabloid()

@@ -11,7 +11,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 import time
 import os
 from win32com.client import Dispatch
@@ -29,7 +29,6 @@ import pprint
 import gzip
 import numpy as np
 import xlsxwriter as xl
-from mail_maker import send_message
 from pandas.errors import EmptyDataError
 from grabloid import Grabloid
 
@@ -44,13 +43,16 @@ class ConnecticutGrabloid(Grabloid):
         driver = self.driver
         login_credentials = self.credentials
         wait = self.wait
+        cld_programs = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='{}'.format(self.script), usecols='E,F',dtype='str')
         login_credentials = login_credentials[login_credentials['Username']!='nan']
         user = list(login_credentials.Username)
         password = list(login_credentials.Password)
         yq = str(yr)+str(qtr)
         mapper = self.mapper
         mapper = dict(zip(mapper['CT Code'],mapper['Lilly Code']))
+        mapper2 = dict(zip(cld_programs['CLD Programs'],cld_programs['Codes']))
         pulled_invoices = []
+        canary_wait = WebDriverWait(driver,1)
         for USER, PW in zip(user,password):
             driver.get('https://www.ctdssmap.com/CTPortal/Provider/Secure%20Site/tabId/56/Default.aspx')
             user_name = driver.find_element_by_xpath('//*[@id="dnn_ctr383_LoginPage_SearchPage_dataPanel_ctl01_ctl11_userName_mb_userName"]')
@@ -133,8 +135,8 @@ class ConnecticutGrabloid(Grabloid):
                         continue
                     else:
                         pass
-                    program = xxx[6:8].lower()
-                    program = mapper[program]
+                    program_code = xxx[6:8].lower()
+                    program = mapper[program_code]
                     label_code = xxx[-9:-4]
                     ext = names[j][-4:]
                     if ext == '.dat':
@@ -160,13 +162,13 @@ class ConnecticutGrabloid(Grabloid):
                                     lines = a.readlines()
                                     ndcs = [x[6:17] for x in lines]
                                 ndcs = list(set(ndcs))
-                                claims_to_get.update({program:ndcs})
+                                claims_to_get.update({program_code:ndcs})
                                 read_success=1
                             except PermissionError as exc:
                                 pass
                     else:
                         pass
-                    file_name = program+'_'+label_code+'_'+str(yr)+'_'+'Q'+str(qtr)+ext
+                    file_name = 'CT_'+mapper[program_code]+'_'+label_code+'_'+str(yr)+'_'+'Q'+str(qtr)+ext
                     pulled_invoices.append(file_name)
                     shutil.move(names[j], path+file_name)
                 #At this point all files on the current page are downloaded
@@ -193,9 +195,9 @@ class ConnecticutGrabloid(Grabloid):
             programs_we_care_about = list(programs_we_care_about['CLD Programs'])
             master_frame = pd.DataFrame()
             for key in programs_we_care_about:
-
-                for ndc in claims_to_get[key]:
-                    ndc_obtained =0
+                reverse_key = mapper2[key]
+                for ndc in claims_to_get[reverse_key]:
+                    ndc_obtained = 0
                     while ndc_obtained==0:
                         try:
                             print('Getting {}'.format(ndc))
@@ -211,6 +213,14 @@ class ConnecticutGrabloid(Grabloid):
                             invoice_type_select_select.select_by_visible_text(key)
                             search_button = driver.find_element_by_xpath('//*[@id="dnn_ctr418_ClaimLevelDetailPage_SearchPage_CriteriaPanel_ctl01_ctl02_SearchButton"]')
                             search_button.click()
+                            canary=0
+                            try:
+                                canary = driver.find_element_by_xpath('//th[contains(text(),"*** No rows found ***")]')
+                                canary = 1
+                            except NoSuchElementException as ex:
+                                pass
+                            if canary==1:
+                                continue
                             donwload = driver.find_element_by_xpath('//a[@target="downloadPage"]')
                             donwload.click()
                             while len(driver.window_handles)>1:
@@ -218,7 +228,16 @@ class ConnecticutGrabloid(Grabloid):
                             ndc_obtained=1
                         except NoSuchElementException or TimeoutException as ex:
                             print('{} occurred on the website, starting over at the CLD main page'.format(ex))
-                            driver.get(url)
+                            driver.get('https://www.ctdssmap.com/CTPortal/Provider/Secure%20Site/tabId/56/Default.aspx')
+                            user_name = driver.find_element_by_xpath('//*[@id="dnn_ctr383_LoginPage_SearchPage_dataPanel_ctl01_ctl11_userName_mb_userName"]')
+                            user_name.send_keys(USER)
+                            pass_word = driver.find_element_by_xpath('//*[@id="dnn_ctr383_LoginPage_SearchPage_dataPanel_ctl01_ctl12_password_mb_password"]')
+                            pass_word.send_keys(PW)
+                            login_button = driver.find_element_by_xpath('//*[@id="dnn_ctr383_LoginPage_SearchPage_dataPanel_ctl01_ctl13_LoginButton"]')
+                            login_button.click()
+                            cld_page = driver.find_element_by_xpath('//div//ul//li//a[@title="Claim Level Detail"][@href="/CTPortal/Trade%20Files/Claim%20Level%20Detail/tabId/85/Default.aspx"]')
+                            trade_files = driver.find_element_by_xpath('//a[@title="Trade Files"]')
+                            ActionChains(driver).move_to_element(trade_files).move_to_element(cld_page).click().perform()  
                 while any(map((lambda x: '.tmp' in x), os.listdir())) or any(map((lambda x: '.crdownload' in x), os.listdir())):
                     time.sleep(1)
                 for file in os.listdir():
@@ -240,10 +259,25 @@ class ConnecticutGrabloid(Grabloid):
                     os.makedirs(path)
                 else:
                     pass
-                file_name = 'CT_{}_{}Q{}_{}.csv'.format(key,qtr,yr,label_code)
-                master_frame.to_csv('master_table.csv', index=False)
-                shutil.move('master_table.csv',path+file_name)
+                file_name = 'CT_{}_{}Q{}_{}.xlsx'.format(mapper[mapper2[key]],qtr,yr,label_code)
+                master_frame.to_excel('master_table.xlsx', index=False, engine='xlsxwriter')
+                shutil.move('master_table.xlsx',path+file_name)
+                print(f'All complete for {program}!')
+            log_off = 0
+            while log_off==0:
+                driver.refresh()
+                account_tab = wait.until(EC.element_to_be_clickable((By.XPATH,'//a[@title="Account"]')))
+                logoff = driver.find_element_by_xpath('//a[text()="Log Out"]')
+                ActionChains(driver).move_to_element(account_tab).pause(1).move_to_element(logoff).click().perform()
+                try:
+                    driver.find_element_by_xpath('//b[contains(text(),"Your secure online session is now closed.")]')
+                    log_off=1
+                except StaleElementReferenceException or TimeoutException as ex:
+                    continue
+            driver.get('https://www.ctdssmap.com/CTPortal/Provider/Secure%20Site/tabId/56/Default.aspx')
         driver.close()
+        os.chdir('O:\\')
+        os.removedirs(self.temp_folder_path)
         return pulled_invoices
 def main():
     grabber = ConnecticutGrabloid()
@@ -252,3 +286,6 @@ def main():
 
 if __name__=='__main__':
     main()
+    
+    
+  

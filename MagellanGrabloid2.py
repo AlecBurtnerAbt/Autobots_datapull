@@ -124,6 +124,7 @@ class MagellanGrabloid(Grabloid):
         '''
         Now moving onto invoices
         '''
+        
         #These lines of code get all available options
         invoices_tab = wait.until(EC.element_to_be_clickable((By.ID,'mainForm:invoices')))
         invoices_tab.click()
@@ -140,8 +141,7 @@ class MagellanGrabloid(Grabloid):
             for x in _:
                 program_name_options.append(x)
         year_qtr = lambda: driver.find_element_by_id('mainForm:srchYearQtr')
-        a = pd.DataFrame(program_name_options)
-        a.to_excel('programs.xlsx',index=False)
+
         
         issue_list = []
         retrieved = {k:[] for k in dict.fromkeys(program_name_options)}
@@ -191,15 +191,20 @@ class MagellanGrabloid(Grabloid):
                 invoice_labels = [x.text for x in invoice_labels()]
                 ps = program.split(' ')[0]
                 if ps =='New':
-                    state = ' '.join(program.split(' ')[:2])
+                    if 'York' in ps:
+                        state = 'NY'
+                    else:
+                        state = 'NH'
                 elif len(program.split(' ')[0]) <3:
-                    state = states[program.split(' ')[0]]
+                    state = program.split(' ')[0]
                 elif program.split(' ')[0] in ('BlueChoice','First'):
                     state = 'SC'
                 elif program.split(' ')[0]=='Unison':
                     state = 'OH'
                 elif program.split(' ')[0]=='North':
                     state = 'NC'
+                elif program.split(' ')[0] =='Arkansas':
+                    state = 'AR'
                 else:
                     state = program.split(' ')[0]
                 try:
@@ -210,8 +215,9 @@ class MagellanGrabloid(Grabloid):
                 for inv_name, label in zip(names, invoice_labels):
                     invoice = lambda: driver.find_element_by_name(inv_name)
                     invoice().click()
-                    _ = [label.split('-')[1],program]
-                    cld_to_get.append(_)
+                    labeler_code = label.split('-')[1]
+                    cld_info = (labeler_code,program)
+                    cld_to_get.append(cld_info)
                     print('Downloading '+label)
                     time.sleep(1)
                     invoice_options = lambda: driver.find_element_by_id('mainForm:selectedFormatType')
@@ -291,16 +297,18 @@ class MagellanGrabloid(Grabloid):
                                 pass
                             else:
                                 pass
-                            path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Invoices\\'+state+'\\'+program+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+                            path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Invoices\\'+states[state]+'\\'+program+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
                             try:
                                 lilly_code = mapper[program]
                             except KeyError as err:
                                 lilly_code = program
-                            file_name = f'{state}_{lilly_code}_{qtr}Q{yr}.pdf'
+                            file_name = f'{state}_{lilly_code}_{qtr}Q{yr}_{label.split("-")[1]}.pdf'
                             if os.path.exists('path')==False:
                                 os.makedirs(path, exist_ok=True)
                             else:
                                 pass
+                            if file_name in os.listdir(path):
+                                file_name = f'{state}_{lilly_code}_{qtr}Q{yr}_{label.split("-")[1]}_{len(os.listdir(path))+1}.pdf'
                             shutil.move("Invoice Report .pdf",path+file_name)
                             invoices_obtained.append(file_name)
                             retrieved[program].append(label)
@@ -329,143 +337,204 @@ class MagellanGrabloid(Grabloid):
                                 pass
                             while 'einvoice.txt' not in os.listdir():
                                 time.sleep(1)
-                            path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Invoices\\'+state+'\\'+program+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
-                            file_name = f'{state}_{lilly_code}_{qtr}Q{yr}.txt'
+                            path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Invoices\\'+states[state]+'\\'+program+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+                            file_name = f'{state}_{lilly_code}_{qtr}Q{yr}_{label.split("-")[1]}.txt'
                             if os.path.exists('path')==False:
                                 os.makedirs(path, exist_ok=True)
                             else:
                                 pass
+                            if file_name in os.listdir(path):
+                                file_name = f'{state}_{lilly_code}_{qtr}Q{yr}_{label.split("-")[1]}_{len(os.listdir(path))+1}.txt'
                             shutil.move("einvoice.txt",path+file_name)
                             invoices_obtained.append(file_name)
                             retrieved[program].append(label)
                             time.sleep(1)
                     invoice().click()
-    
+        return cld_to_get, invoices_obtained
          ########################################################CLD Below this line###########################################   
         
-        if pass_cld_flag==1:
-            driver.close()
+    def pull_cld(self,cld_to_get):
+        states = {
+            'AK': 'Alaska',
+            'AL': 'Alabama',
+            'AR': 'Arkansas',
+            'AS': 'American Samoa',
+            'AZ': 'Arizona',
+            'CA': 'California',
+            'CO': 'Colorado',
+            'CT': 'Connecticut',
+            'DC': 'District of Columbia',
+            'DE': 'Delaware',
+            'FL': 'Florida',
+            'GA': 'Georgia',
+            'GU': 'Guam',
+            'HI': 'Hawaii',
+            'IA': 'Iowa',
+            'ID': 'Idaho',
+            'IL': 'Illinois',
+            'IN': 'Indiana',
+            'KS': 'Kansas',
+            'KY': 'Kentucky',
+            'LA': 'Louisiana',
+            'MA': 'Massachusetts',
+            'MD': 'Maryland',
+            'ME': 'Maine',
+            'MI': 'Michigan',
+            'MN': 'Minnesota',
+            'MO': 'Missouri',
+            'MP': 'Northern Mariana Islands',
+            'MS': 'Mississippi',
+            'MT': 'Montana',
+            'NA': 'National',
+            'NC': 'North Carolina',
+            'ND': 'North Dakota',
+            'NE': 'Nebraska',
+            'NH': 'New Hampshire',
+            'NJ': 'New Jersey',
+            'NM': 'New Mexico',
+            'NV': 'Nevada',
+            'NY': 'New York',
+            'OH': 'Ohio',
+            'OK': 'Oklahoma',
+            'OR': 'Oregon',
+            'PA': 'Pennsylvania',
+            'PR': 'Puerto Rico',
+            'RI': 'Rhode Island',
+            'SC': 'South Carolina',
+            'SD': 'South Dakota',
+            'TN': 'Tennessee',
+            'TX': 'Texas',
+            'UT': 'Utah',
+            'VA': 'Virginia',
+            'VI': 'Virgin Islands',
+            'VT': 'Vermont',
+            'WA': 'Washington',
+            'WI': 'Wisconsin',
+            'WV': 'West Virginia',
+            'WY': 'Wyoming',
+            'Absolute' : 'South Carolina',
+            'BlueChoice' :'South Carolina',
+            'First' :'South Carolina',
+            'Unison' :'Ohio'
+        }
+        yr = self.yr
+        qtr = self.qtr
+        driver = self.driver
+        wait = self.wait
+        claims_details = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="mainForm:claims"]')))
+        claims_details.click()
+        yq = str(yr)+str(qtr)
+        mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Magellan', usecols='D,F',dtype='str')
+        mapper = dict(zip(mapper['CLD Programs'],mapper['Lilly Code']))
             
-        else:
-        
-            claims_details = wait.until(EC.element_to_be_clickable((By.XPATH,'//*[@id="mainForm:claims"]')))
-            claims_details.click()
-            
-            
-            yq = str(yr)+str(qtr)
-            
-            
-            """
-            Sets dropdown default to null
-            """
-            labeler = lambda: driver.find_element_by_id('mainForm:labelerCode')
-            labeler_select = lambda: Select(labeler())
-            year_qtr = lambda: driver.find_element_by_id('mainForm:srchYearQtr')
+        """
+        Sets dropdown default to null
+        """
+        labeler = lambda: driver.find_element_by_id('mainForm:labelerCode')
+        labeler_select = lambda: Select(labeler())
+        year_qtr = lambda: driver.find_element_by_id('mainForm:srchYearQtr')
+        year_qtr().clear()
+        year_qtr().send_keys(yq)
+        program_name = lambda: driver.find_element_by_id('mainForm:srchProgramName')
+        program_name_select = lambda: Select(program_name()) 
+        wait2 = WebDriverWait(driver,3)
+        for item in cld_to_get:
+            labeler_code = item[0]
+            cld_program_name = item[1]
             year_qtr().clear()
             year_qtr().send_keys(yq)
-            program_name = lambda: driver.find_element_by_id('mainForm:srchProgramName')
-            program_name_select = lambda: Select(program_name()) 
-            
-            for item in cld_to_get:
-                year_qtr().clear()
-                year_qtr().send_keys(yq)
-                #input the labeler code and program name from the invoices
-                email_flag = 0
-                labeler_select().select_by_visible_text(item[0])
-                time.sleep(1)
-                program_name_select().select_by_visible_text(item[1])
-                time.sleep(1)
-                #VA requires a checkbox, so use a try clause to move past it
-                try: 
-                    a = driver.find_element_by_xpath('//input[@type="checkbox"]')
-                    a.click()
-                except NoSuchElementException as ex:
-                    pass
-                print(item[1]+' selected')
-                #click the submit button
-                submit = wait.until(EC.element_to_be_clickable((By.ID,'mainForm:btnContinue')))
-                submit.click()
-                time.sleep(3)
-                print('submit clicked')
-                #sometimes the site wants to email you when the data is ready, 
-                #so switch to that notificaiton and accept if required
-                try:
-                    alert = driver.switch_to.alert
-                    alert.accept()
-                    email_flag=1
-                except:       
-                    pass
-                #If for some reason the CLD doesn't exist detect the error message
-                #add the CLD to the issues list to be sent to the user and move on
-                try:
-                    driver.find_element_by_class_name('errorMsg')
-                    print('No data for this program')
-                    driver.refresh()
-                    continue
-                except NoSuchElementException as ex:
-                    pass
-                if email_flag ==0:
-                    success_flag = 0
-                    while success_flag ==0:
-                        try:
-                            wait2.until(EC.element_to_be_clickable((By.XPATH,'//p[contains(text(),"We apologize for the inconvenience and appreciate your patience.")]')))
-                            driver.back()
-                            submit = wait.until(EC.element_to_be_clickable((By.ID,'mainForm:btnContinue')))
-                            submit.click()
-                        except TimeoutException as ex:
-                            success_flag=1
-                            pass
-                    while 'claimdetails.xls' not in os.listdir():
-                        time.sleep(1)
-                    if len(item[1].split(' ')[0]) <3:
-                        state = states[item[1].split(' ')[0]]
-                    elif item[1].split(' ')[0] in ('BlueChoice','First','Absolute'):
-                        state = 'SC'
-                    elif item[1].split(' ')[0]=='Unison':
-                        state = 'OH'
-                    elif item[1].split(' ')[0]=='North':
-                        state = 'NC'
-                    elif 'New Hampshire' in item[1]:
-                        state = 'NH'
-                    else:
-                        state = item[1].split(' ')[0]
-                        
-                    path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Claims\\'+state+'\\'+' '.join(item[1].split(' ')[1:])+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
-                    if os.path.exists(path)==False:
-                        os.makedirs(path)              
-                    else:
+            #input the labeler code and program name from the invoices
+            email_flag = 0
+            labeler_select().select_by_visible_text(labeler_code)
+            time.sleep(1)
+            program_name_select().select_by_visible_text(cld_program_name)
+            time.sleep(1)
+            #VA requires a checkbox, so use a try clause to move past it
+            try: 
+                a = driver.find_element_by_xpath('//input[@type="checkbox"]')
+                a.click()
+            except NoSuchElementException as ex:
+                pass
+            print(item[1]+' selected')
+            #click the submit button
+            submit = wait.until(EC.element_to_be_clickable((By.ID,'mainForm:btnContinue')))
+            submit.click()
+            time.sleep(3)
+            print('submit clicked')
+            #sometimes the site wants to email you when the data is ready, 
+            #so switch to that notificaiton and accept if required
+            try:
+                alert = driver.switch_to.alert
+                alert.accept()
+                email_flag=1
+            except:       
+                pass
+            #If for some reason the CLD doesn't exist detect the error message
+            #add the CLD to the issues list to be sent to the user and move on
+            try:
+                driver.find_element_by_class_name('errorMsg')
+                print('No data for this program')
+                driver.refresh()
+                continue
+            except NoSuchElementException as ex:
+                pass
+            if email_flag ==0:
+                success_flag = 0
+                while success_flag ==0:
+                    try:
+                        wait2.until(EC.element_to_be_clickable((By.XPATH,'//p[contains(text(),"We apologize for the inconvenience and appreciate your patience.")]')))
+                        driver.back()
+                        submit = wait.until(EC.element_to_be_clickable((By.ID,'mainForm:btnContinue')))
+                        submit.click()
+                        wait.until(EC.staleness_of((submit)))
+                    except TimeoutException as ex:
+                        success_flag=1
                         pass
-                    new_name = f'{state}_{lilly_code}_{qtr}Q{year}.xls'
-                    shutil.move('claimdetails.xls',path+new_name)
+                while 'claimdetails.xls' not in os.listdir():
+                    time.sleep(1)
+                if len(item[1].split(' ')[0]) <3:
+                    state = item[1].split(' ')[0]
+                elif item[1].split(' ')[0] in ('BlueChoice','First','Absolute'):
+                    state = 'SC'
+                elif item[1].split(' ')[0]=='Unison':
+                    state = 'OH'
+                elif item[1].split(' ')[0]=='North':
+                    state = 'NC'
+                elif 'New Hampshire' in item[1]:
+                    state = 'NH'
+                elif 'New York' in item[1]:
+                    state = 'NY'
+                elif 'Arkansas' in item[1]:
+                    state = 'AR'
+                else:
+                    state = item[1].split(' ')[0]
+                    
+                path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\'+'Claims\\'+states[state]+'\\'+' '.join(item[1].split(' ')[1:])+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
+                if os.path.exists(path)==False:
+                    os.makedirs(path)              
                 else:
                     pass
+                lilly_code = mapper[cld_program_name]
+                new_name = f'{state}_{lilly_code}_{qtr}Q{yr}_{labeler_code}.xls'
+                shutil.move('claimdetails.xls',path+new_name)
+            else:
+                pass
+        os.chdir('O:\\')
+        os.removedirs(self.temp_folder_path)
         return invoices
 
 def main():
     grabber = MagellanGrabloid()
-    invoices = grabber.pull()
+    cld, invoices = grabber.pull()
+    grabber.pull_cld(cld[173:])
     grabber.send_message(invoices)
     
 if __name__=='__main__':
     main()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+import pickle
+with open('data.pickle','wb') as f:
+    pickle.dump(cld,f)
 
 

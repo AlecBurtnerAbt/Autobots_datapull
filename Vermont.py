@@ -31,7 +31,6 @@ import numpy as np
 import xlsxwriter as xl
 import multiprocessing as mp
 from mail_maker import send_message
-from exception_wrapper import ExceptionWrapper
 def generate_browser():
     os.chdir('C:/Users/')
     #open the driver and get to the site and login
@@ -45,6 +44,7 @@ def generate_browser():
     for file in os.listdir():
         os.remove(file)
     return driver
+    
 def get_invoices(driver):
 
     time_stuff = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx', sheet_name = 'Year-Qtr',use_cols='A:B')
@@ -132,11 +132,17 @@ def get_invoices(driver):
                 time.sleep(1)
             #Now open the file and return the NDCs associated to the label code and program
             if file_type =='.txt':
-                with open(file_name) as f:
-                    lines = f.readlines()
-                    ndcs = list(set([line[6:17] for line in lines]))
-                    ndcs = [ndc for ndc in ndcs if len(ndc)>1]
-                    reference_list.append((label,report,ndcs))
+                read_flag = 0
+                while read_flag==0:
+                    try:
+                        with open(file_name) as f:
+                            lines = f.readlines()
+                            ndcs = list(set([line[6:17] for line in lines]))
+                            ndcs = [ndc for ndc in ndcs if len(ndc)>1]
+                            reference_list.append((label,report,ndcs))
+                        read_flag=1
+                    except PermissionError as ex:
+                        pass
             else:
                 pass
             try:
@@ -160,9 +166,8 @@ def get_invoices(driver):
     send_message(subject,body,to_address)
     driver.stop_client()
     driver.close()
-    return yq, username, password, master_dict, types
-
-def make_chunks(dictionary):
+    return yq, username, password, master_dict,types,reference_list
+def make_chunks(master_dict):
     #Break the information for each report down into 
     reports = []
     for key in master_dict.keys():
@@ -170,12 +175,15 @@ def make_chunks(dictionary):
             for value in master_dict[key][key2]:
                     report = (key,key2,value)
                     reports.append(report)
+    
     n = round(len(reports)/(mp.cpu_count()-1))
     chunks = [reports[x:x+n] for x in range(0,len(reports),n)]
     return chunks
 
 ##reports stuff is below this
-def getReports(chunk):
+def getReports(num,chunk,types):
+
+    print('Working on chunk: '+str(num))
     os.chdir('C:/Users/')
     #open the driver and get to the site and login
     chromeOptions = webdriver.ChromeOptions()
@@ -200,9 +208,22 @@ def getReports(chunk):
     pass_word = driver.find_element_by_id('password')
     pass_word.send_keys(password)
     login = driver.find_element_by_id('submit')
-    login.click()
-    
+    in_flag = 0
     wait = WebDriverWait(driver,10)
+    while in_flag == 0:
+        login.click()
+        try:
+            canary = wait.until(EC.element_to_be_clickable((By.ID,'terms')))        
+            in_flag = 1
+        except TimeoutException as ex:
+            driver.get(r'https://www.vermontrsp.com/RebateServicesPortal/login/home?goto=http://www.vermontrsp.com/RebateServicesPortal/')
+            user = driver.find_element_by_id('username')
+            user.send_keys(username)
+            pass_word = driver.find_element_by_id('password')
+            pass_word.send_keys(password)
+            login = driver.find_element_by_id('submit')
+    
+    
     accept = wait.until(EC.element_to_be_clickable((By.ID,'terms')))
     accept.click()
     invoices = driver.find_element_by_xpath('//a[text()="Invoices"]')
@@ -229,47 +250,48 @@ def getReports(chunk):
     #Now starting iterating through the chunk
     for label, program, ndc in chunk:
         success = 0
+        if program == 'Medicare_Wrap':
+            program = 'VPharm/SPAP (Medicare Wrap)'
+        elif program == 'DME':
+            program = 'State Only Diabetic (DME)'
         while success==0:
-            report = driver.find_element_by_xpath('//select[@name="stateReportId"]')
-            select_report = Select(report)        
-            select_report.select_by_index(1)
-            time.sleep(1)
-            ndc_in = driver.find_element_by_xpath('//input[@name="ndc"]')
-            ndc_in.send_keys(ndc)
-            time.sleep(1)
-            docType = driver.find_element_by_xpath('//select[@name="docType"]')
-            select_docType = Select(docType)
-            select_docType.select_by_visible_text(program.replace('_',' '))
-            time.sleep(1)
-            rpu = driver.find_element_by_xpath('//input[@name="rpuStart"]')
-            rpu.send_keys(yq)
-            time.sleep(1)
-            submit_button= driver.find_element_by_xpath('//input[@value="Submit"]')
-            submit_button.click()
-            accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@value="Accept"]')))
-            accept.click()
-            wait.until(EC.staleness_of(accept))
-            soup = BeautifulSoup(driver.page_source,'html.parser')
-            Reports = [x.text.strip() for x in soup.find_all('td')]
-            if any(map((lambda x: (ndc+' VT '+yq+' '+types_2[types.index(program)]) in x),Reports)):
-                success=1
-            else:
+            try:
+                report = driver.find_element_by_xpath('//select[@name="stateReportId"]')
+                select_report = Select(report)        
+                select_report.select_by_index(1)
+                
+                ndc_in = driver.find_element_by_xpath('//input[@name="ndc"]')
+                ndc_in.send_keys(ndc)
+                wait.until(EC.element_to_be_clickable((By.XPATH,'//select[@name="docType"]')))
+                docType = driver.find_element_by_xpath('//select[@name="docType"]')
+                select_docType = Select(docType)
+                select_docType.select_by_visible_text(program.replace('_',' '))
+                wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@name="rpuStart"]')))
+                rpu = driver.find_element_by_xpath('//input[@name="rpuStart"]')
+                rpu.send_keys(yq)
+                
+                submit_button= driver.find_element_by_xpath('//input[@value="Submit"]')
+                submit_button.click()
+                accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@value="Accept"]')))
+                accept.click()
+                wait.until(EC.staleness_of(accept))
+                soup = BeautifulSoup(driver.page_source,'html.parser')
+                Reports = [x.text.strip() for x in soup.find_all('td')]
+                if any(map((lambda x: (ndc+' VT '+yq+' '+types_2[types.index(program)]) in x),Reports)):
+                    success=1
+                else:
+                    driver.refresh()
+                    pass
+            except TimeoutException as ex:
+                driver.refresh()
                 pass
+    driver.stop_client()
     driver.close()
-    return 'ok'
-
+  
+    
 def download_reports():
-    os.chdir('C:/Users/')
-    #open the driver and get to the site and login
-    chromeOptions = webdriver.ChromeOptions()
-    prefs = {'download.default_directory':'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder',
-             'plugins.always_open_pdf_externally':True,
-             'download.prompt_for_download':False}
-    chromeOptions.add_experimental_option('prefs',prefs)
-    driver = webdriver.Chrome(chrome_options = chromeOptions, executable_path=r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\chromedriver.exe')
+    driver = generate_browser()
     os.chdir('O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder')
-    for file in os.listdir():
-        os.remove(file)
     time_stuff = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx', sheet_name = 'Year-Qtr',use_cols='A:B')
     yr = time_stuff.iloc[0,0]
     qtr = time_stuff.iloc[0,1]
@@ -321,30 +343,41 @@ def download_reports():
     
     #now that we have rows only for where reports are ready we can move forward
     names = [x.find_element_by_xpath('td[1]').text for x in rows]
-    links = [x.find_element_by_xpath('td//a[@href="#"]') for x in rows]
+    links = [x.find_element_by_xpath('td//a[@href="#"]/i') for x in rows]
     master_df = pd.DataFrame()
-    
+    files = []
     for name, link in zip(names, links):
-        #get info for file name
-        ndc = name.split(' ')[7]
-        state = name.split(' ')[8]
-        program = name.split(' ')[10]
-        value = mapper[program]
-        first_half = '_'.join(name.split(' ')[:5])
-        second_half = '-'.join(name.split(' ')[-4:]).replace(program,mapper[program])
-        download_name = '-'.join([first_half,second_half])+'.xls'
-        #download the file
-        flag = 0
-        while flag ==0:
-            link.click()
+        success_flag = 0
+        while success_flag==0:
+            #get info for file name
+            ndc = name.split(' ')[7]
+            state = name.split(' ')[8]
+            program = name.split(' ')[10]
+            value = mapper[program]
+            first_half = '_'.join(name.split(' ')[:5])
+            second_half = '-'.join(name.split(' ')[-4:]).replace(program,mapper[program])
+            download_name = '-'.join([first_half,second_half])+'.xls'
+            if download_name in os.listdir():
+                continue
+            else:
+                pass
+            files.append(download_name)
+            #download the file
+            
             counter = 0
-            while download_name not in os.listdir() and counter<21:
+            try:
+                link.click()
+            except WebDriverException as ex:
+                driver.refresh()
+                continue
+            while download_name not in os.listdir() and counter<10:
                 time.sleep(1)
                 counter+=1
-            if download_name not in os.listdir():
+            if counter >9:
                 pass
             else:
-                flag = 1
+                success_flag=1
+    
         temp_df = pd.read_excel(download_name,skipfooter=3)
         temp_df = temp_df.dropna(axis=0,how='all')
         if len(temp_df)==0:
@@ -359,35 +392,41 @@ def download_reports():
     for splitter in splitters:
         frame = master_df[master_df['Program']==splitter]
         path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Vermont\\'+splitter+'\\'+str(yr)+'\\'+'Q'+str(qtr)+'\\'
-        file_name = 'PA_'+splitter+'_'+str(qtr)+'Q'+str(yr)+'.csv'
+        file_name = 'VT_'+splitter+'_'+str(qtr)+'Q'+str(yr)+'.xlsx'
         if os.path.exists(path)==False:
             os.makedirs(path)
         else:
             pass
         os.chdir(path)
-        frame.to_csv(file_name)
+        frame.to_excel(file_name, engine='xlsxwriter')
+    closers = lambda: driver.find_elements_by_xpath('//a[@title="Delete"]/i')
+    for close in closers():
+        closers()[0].click()
+        alert = driver.switch_to.alert
+        alert.accept()
+    driver.stop_client()
     driver.close()
-        
-if __name__=='__main__':
+    for file in os.listdir():
+        os.remove(file)
+
+def main():
     driver = generate_browser()
-    yq , username , password , master_dict , types = get_invoices(driver)  
+    yq, username, password, master_dict,types,reference_list = get_invoices(driver)  
     chunks = make_chunks(master_dict)
-    processes = [mp.Process(target=getReports,args=(chunk)) for chunk in chunks]
+    processes = [mp.Process(target=getReports,args=(i,chunk,types)) for i,chunk in enumerate(chunks)]
     for p in processes:
-        results = p.start()  
+        p.start()
     for p in processes:
         p.join()   
-    for result in results:
-        if isinstance(results,ExceptionWrapper):
-            result.re_raise()                
+
+
     download_reports()
-'''
-deletes = lambda: driver.find_elements_by_xpath('//a[@title="Delete"]')
-for i in range(len(deletes())):
-    deletes()[-1].click()
-    alert = driver.switch_to.alert
-    alert.accept()
-'''
+    for p in processes:
+        p.terminate()
+    
+if __name__=='__main__':
+    main()
+
 
 
 

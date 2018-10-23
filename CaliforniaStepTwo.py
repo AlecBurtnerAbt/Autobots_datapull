@@ -44,8 +44,8 @@ def download_reports():
              'plugins.always_open_pdf_externally':True,
              'download.prompt_for_download':False}
     chromeOptions.add_experimental_option('prefs',prefs)
-    program_mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='California', usecols=[1,2,3],dtype='str')
-    mapper = dict(zip(program_mapper['Code on CA Invoice'],program_mapper['Contract ID in MRB']))
+    #program_mapper = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='California', usecols=[1,2,3],dtype='str')
+    #mapper = dict(zip(program_mapper['Code on CA Invoice'],program_mapper['Contract ID in MRB']))
     driver = webdriver.Chrome(chrome_options = chromeOptions, executable_path=r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\chromedriver.exe')
     os.chdir('O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Landing_Folder')
     for file in os.listdir():

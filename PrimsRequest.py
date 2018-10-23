@@ -102,7 +102,13 @@ def prims():
                     program_to_select = driver.find_element_by_xpath(xpath)
                     program_drop_down = driver.find_element_by_xpath('//input[contains(@id,"ProgramDropDown_Input")]')
                     ActionChains(driver).move_to_element(program_drop_down).click().pause(1).move_to_element(program_to_select).click().perform()
-                    wait.until(EC.staleness_of(program_drop_down))     
+                    stale_flag =0
+                    while stale_flag==0:
+                        try:
+                            wait.until(EC.staleness_of(program_drop_down))  
+                            stale_flag=1
+                        except TimeoutException as ex:
+                            continue
                 if page==invoice_request_page:
                     date_checker = driver.find_element_by_xpath('//span[contains(@id,"AvailableQuarterLabelValue")]')
                     if date_checker.text == yq2:
@@ -137,7 +143,14 @@ def prims():
                 else:
                     pass             
                 submit.click()
-                wait.until(EC.staleness_of(submit))
+                stale_flag =0
+                while stale_flag==0:
+                    try:
+                        wait.until(EC.staleness_of(submit))
+                        stale_flag=1
+                    except TimeoutException as ex:
+                        continue
+                    
     driver.close()            
     return retrieved, to_address
 
