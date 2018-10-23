@@ -253,31 +253,36 @@ def getReports(num,chunk):
     accept = wait.until(EC.element_to_be_clickable((By.ID,'terms')))
     accept.click()
     reports_tab = wait.until(EC.element_to_be_clickable((By.XPATH,'//a[text()="Reports"]')))       
-    reports_tab.click()                
+    reports_tab.click()           
     report = lambda: wait.until(EC.element_to_be_clickable((By.XPATH,'//select[@id="reportList"]')))
     report_select = lambda: Select(report())
     #Now starting iterating through the chunk
     for label, program, ndc in chunk:
         success = 0
         while success==0:
-            report = driver.find_element_by_xpath('//select[@name="stateReportId"]')
-            select_report = Select(report)        
-            select_report.select_by_index(1)
-            
-            ndc_in = driver.find_element_by_xpath('//input[@name="ndc"]')
-            ndc_in.send_keys(ndc)
-            
-            docType = driver.find_element_by_xpath('//select[@name="docType"]')
-            select_docType = Select(docType)
-            select_docType.select_by_visible_text(program.replace('_',' '))
-            
-            rpu = driver.find_element_by_xpath('//input[@name="rpuStart"]')
-            rpu.send_keys(yq)
-            
-            submit_button= driver.find_element_by_xpath('//input[@value="Submit"]')
-            submit_button.click()
-            accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@value="Accept"]')))
-            accept.click()
+            try:
+                report = driver.find_element_by_xpath('//select[@name="stateReportId"]')
+                select_report = Select(report)        
+                select_report.select_by_index(1)
+                
+                ndc_in = driver.find_element_by_xpath('//input[@name="ndc"]')
+                ndc_in.send_keys(ndc)
+                
+                docType = driver.find_element_by_xpath('//select[@name="docType"]')
+                select_docType = Select(docType)
+                select_docType.select_by_visible_text(program.replace('_',' '))
+                
+                rpu = driver.find_element_by_xpath('//input[@name="rpuStart"]')
+                rpu.send_keys(yq)
+                
+                submit_button= driver.find_element_by_xpath('//input[@value="Submit"]')
+                submit_button.click()
+                
+                accept = wait.until(EC.element_to_be_clickable((By.XPATH,'//input[@value="Accept"]')))
+                accept.click()
+            except TimeoutException as ex:
+                driver.refresh()
+                
             wait.until(EC.staleness_of(accept))
             soup = BeautifulSoup(driver.page_source,'html.parser')
             Reports = [x.text.strip() for x in soup.find_all('td')]

@@ -14,7 +14,7 @@ import time
 class Pusher():
     
     def __init__(self):
-        self.path = 'O:\\M-R\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\'
+        self.path = 'O:\\M-R\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Vermont'
         os.chdir(self.path)
     
     def batch_files(self,qtr,year):
