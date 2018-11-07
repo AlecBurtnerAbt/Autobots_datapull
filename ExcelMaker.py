@@ -33,7 +33,7 @@ cajun_columns = ['NDC','Quantity','Payment Date','Date of Service','Prescriber N
 
 
 class ExcelMaker():
-    def __init__(self,state,year,qtr,columns,compound_columns):
+    def __init__(self,state,year,qtr,columns,compound_columns,st_abbrev):
         self.state = state
         self.year = year
         self.qtr = qtr
@@ -43,6 +43,7 @@ class ExcelMaker():
         self.excel_path = f'O:\\M-R\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Excels\\{self.state}\\'
         self.raw_text_path = f'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Raw Text\\{self.state}\\'
         self.magic_folder = 'Z:\\'
+        self.st_abbrev = st_abbrev
         
     def make_cali_excels(self):
         self.dirs = [dirs for roots, dirs, files in os.walk(self.path)]
@@ -94,7 +95,7 @@ class ExcelMaker():
        cajun_frame.to_excel(file_name,index=False)
        
     def mexontana_excels(self):
-        self.data = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Test\Raw Text\Montana New Mexico-Conduent Text CLD\DRAMS NCPDP Format.xls',skiprows=2)
+        self.data = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Test\Raw Text\Montana New Mexico-Conduent Text CLD\DRAMS NCPDP Format2.xls',skiprows=2)
         self.column_names = self.data.iloc[:,0]
         self.data_cuts = [(int(start)-1,int(end)-1) for start,end in zip(self.data.Start,self.data.End)]
         os.chdir(self.raw_text_path)
@@ -115,18 +116,46 @@ class ExcelMaker():
         os.chdir(self.excel_path)
         mexontana_frame.to_excel(file_name,index=False)
         
+    def mexontana_for_submission(self):
+        self.data = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Test\Raw Text\Montana New Mexico-Conduent Text CLD\DRAMS NCPDP Format2.xls',skiprows=2)
+        self.column_names = self.data.iloc[:,0]
+        self.data_cuts = [(int(start)-1,int(end)-1) for start,end in zip(self.data.Start,self.data.End)]
+        os.chdir(self.raw_text_path)
+        files = [file for file in os.listdir() if '.txt' in file]
+        for file in files:
+            os.chdir(self.raw_text_path)
+            program = file.split('_')[1]
+            label_code = file.split('_')[3]
+            data = []
+            with open(file) as F:
+                lines = F.readlines()[1:-1]
+                for line in lines:
+                    holder = []
+                    for start, end in self.data_cuts:
+                        holder.append(line[start:end])
+                    data.append(holder)
+            frame = pd.DataFrame(data,columns=self.column_names)
+            file_name = f'{self.st_abbrev}_{program}_{self.qtr}Q{self.year}_{label_code}.xlsx'
+            path =f'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Converted Raw Text\\Claims\\{self.state}\\{program}\\'
+            if os.path.exists(path)==False:
+                os.makedirs(path)
+            os.chdir(path)
+            frame.to_excel(path+file_name,index=False)
+        
 
                
-cali = ExcelMaker(state = 'California', year = 2018, qtr = 2, columns = cali_columns, compound_columns = cali_compound_columns)        
+cali = ExcelMaker(state = 'California', year = 2018, qtr = 2, columns = cali_columns, compound_columns = cali_compound_columns, st_abbrev='CA')        
 cali.make_cali_excels()    
 
 
-crawdads = ExcelMaker(state = 'Louisiana',year = 2018, qtr=2, columns = cajun_columns, compound_columns=None)
+crawdads = ExcelMaker(state = 'Louisiana',year = 2018, qtr=2, columns = cajun_columns, compound_columns=None, st_abbrev = 'LA')
 crawdads.make_cajun_excels()
 
 
-montana = ExcelMaker(state='Montana Conduet', year = 2018, qtr = 2, columns = None, compound_columns = None)
+montana = ExcelMaker(state='Montana Conduet', year = 2018, qtr = 2, columns = None, compound_columns = None, st_abbrev = 'MT')
 montana.mexontana_excels()
+montana.mexontana_for_submission()
 
-new_mexico = ExcelMaker(state='New Mexico Conduet', year = 2018, qtr = 2, columns = None, compound_columns = None)
+new_mexico = ExcelMaker(state='New Mexico Conduet', year = 2018, qtr = 2, columns = None, compound_columns = None, st_abbrev = 'NM')
 new_mexico.mexontana_excels()
+new_mexico.mexontana_for_submission()

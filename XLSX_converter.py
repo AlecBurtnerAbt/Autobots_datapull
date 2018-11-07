@@ -9,6 +9,7 @@ import os
 import win32com.client as com
 path = r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Test\Claims'
 
+#The below loop goes through and changes all XLS files to XLSX files
 for root, dirs, files in os.walk(path):
     for file in files:
         if file.split('.')[-1]=='xls':
@@ -16,6 +17,7 @@ for root, dirs, files in os.walk(path):
             wb = excel.Workbooks.Open(root+'\\'+file)
             wb.SaveAs(root+'\\'+file+'x', FileFormat=51)
             wb.Close()
+#The below file moves all XLS files from the Test\Claims directory to the archive
 path2 = r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Test\Archive\XLS'       
 for root, dirs, files in os.walk(path):
     for file in files:

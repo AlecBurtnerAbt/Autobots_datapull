@@ -116,6 +116,8 @@ class Alabama_Grabloid(Grabloid):
                         time.sleep(1)
                     for file in os.listdir():
                         path = 'O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Invoices\\Alabama\\CMS\\'+str(self.yr)+'\\'+'Q'+str(self.qtr)+'\\'
+                        if os.path.exists(path)==False:
+                            os.makedirs(path)
                         name = 'Invoice Cover Letter.pdf'
                         shutil.move(file,path+name)
                         invoices_obtained.append(name)
@@ -150,7 +152,9 @@ class Alabama_Grabloid(Grabloid):
                             ndc_box().clear()
                             ndc_box().send_keys(drug)
                             invoice_period().send_keys(str(self.qtr)+'/'+str(self.yr))
-                            search_button().click()
+                            search_button = driver.find_element_by_xpath('//a[@title="Search using the specified criteria"]')
+                            search_button.click()
+                            wait.until(EC.staleness_of((search_button)))
                             if option == 'Supplemental':
                                 try:
                                     wait2.until(EC.presence_of_element_located((By.XPATH,'//th[contains(text(),"No rows found")]')))
@@ -166,6 +170,11 @@ class Alabama_Grabloid(Grabloid):
                             download_link = wait.until(EC.element_to_be_clickable((By.XPATH,'//a[text()="Download File"]')))                    
                             success_flag = 0 
                             while success_flag == 0:
+                                
+                                try:
+                                    driver.switch_to.default_content
+                                except:
+                                    pass
                                 download_link.click()
                                 time.sleep(3)
                                 if len(os.listdir()) < 1:
@@ -225,6 +234,7 @@ class Alabama_Grabloid(Grabloid):
                     log_off_able=1
                     pass
         driver.close()
+        os.chdir('O:\\')
         os.removedirs(self.temp_folder_path)
         return invoices_obtained
 

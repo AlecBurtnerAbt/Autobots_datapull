@@ -526,15 +526,11 @@ class MagellanGrabloid(Grabloid):
 def main():
     grabber = MagellanGrabloid()
     cld, invoices = grabber.pull()
-    grabber.pull_cld(cld[173:])
+    grabber.pull_cld()
     grabber.send_message(invoices)
     
 if __name__=='__main__':
     main()
 
-
-import pickle
-with open('data.pickle','wb') as f:
-    pickle.dump(cld,f)
 
 

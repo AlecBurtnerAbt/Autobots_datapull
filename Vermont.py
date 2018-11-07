@@ -398,7 +398,7 @@ def download_reports():
         else:
             pass
         os.chdir(path)
-        frame.to_excel(file_name, engine='xlsxwriter')
+        frame.to_excel(file_name, engine='xlsxwriter', index=False)
     closers = lambda: driver.find_elements_by_xpath('//a[@title="Delete"]/i')
     for close in closers():
         closers()[0].click()

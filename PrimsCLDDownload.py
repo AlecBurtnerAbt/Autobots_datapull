@@ -290,7 +290,6 @@ def make_files(state_programs,yr,qtr,statesII):
     files = ['_'.join(x) for x in files]
     cld_obtained = []
     to_address = pd.read_excel(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Automation Scripts Parameters\automation_parameters.xlsx',sheet_name='Notification Address', usecols='A',dtype='str',names=['Email'],header=None).iloc[0,0]
-
     for file in files:
         state = file.split('_')[1]
         program_code = file.split('_')[7]
@@ -305,16 +304,17 @@ def make_files(state_programs,yr,qtr,statesII):
   
     for key in frames.keys():
         state = key.split('_')[0]
-        program = state_programs[statesII[state]][key.split('_')[1]]
+        program_code = key.split('_')[1]
+        program = state_programs[statesII[state]][program_code]
         path ='O:\\M-R\\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\{}\\{}\\{}\\Q{}\\'.format(statesII[state],program,yr,qtr)
         if os.path.exists(path):
             pass
         else:
             os.makedirs(path)
-        file_name = '{}_{}_{}Q{}.csv'.format(state,program,qtr,yr)
+        file_name = '{}_{}_{}Q{}.xlsx'.format(state,program,qtr,yr)
         cld_obtained.append(file_name)
         os.chdir(path)
-        frames[key].to_csv(file_name,index=False)
+        frames[key].to_excel(file_name,engine='xlsxwriter',index=False)
 
        
     #Send message to CMA team notifying them which invoices were  downloaded

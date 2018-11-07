@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Oct 18 13:34:11 2018
+Created on Mon Nov  5 15:55:47 2018
 
 @author: C252059
 """
 
-import csv
+import camelot 
+import pandas as pd
+import os
 
-import sqlite3
+os.chdir(r'C:\Users\c252059\Documents\Formulary Automation\Test Documents')
 
-with sqlite3.connect("new.db") as connection:
-    c = connection.cursor()
+files = os.listdir()
 
-    # open the csv file and assign it to a variable
-    employees = csv.reader(open(r"C:\Users\c252059\Documents\RealPython\real-python-test\sql\employees.csv", "rU"))
-
-    # create a new table called employees
-    c.execute("CREATE TABLE employees(firstname, lastname)")
-
-    # insert data into table
-    c.executemany("INSERT INTO employees(firstname, lastname) values (?, ?)", employees)
+data = camelot.read_pdf(files[2], pages='all', flavor='stream')
+data._tables
+b = pd.DataFrame()
+for frame in data._tables:
+    b = a.append(frame.df)

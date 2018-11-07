@@ -6,7 +6,7 @@ Created on Mon Oct 15 12:52:42 2018
 """
 
 import os
-import pandas
+import pandas as pd
 import re
 import shutil
 import time
@@ -14,14 +14,17 @@ import time
 class Pusher():
     
     def __init__(self):
-        self.path = 'O:\\M-R\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Claims\\Vermont'
+        self.path = 'O:\\M-R\MEDICAID_OPERATIONS\\Electronic Payment Documentation\\Test\\Converted Raw Text\\Claims\\'
         os.chdir(self.path)
     
     def batch_files(self,qtr,year):
         to_submit = []
         for root, dirs, files in os.walk(self.path):
+            
             for file in files:
                 if qtr not in root:
+                    pass
+                if 'sup'in file.lower():
                     pass
                 else:
                     file_name = os.path.join(root,file)
@@ -42,6 +45,7 @@ class Pusher():
             for file in batch:
                 base_file = file.split('\\')[-1].replace(' ','-')
                 file_name = 'IRIS.CLD.'+base_file
+                file_name = file_name.replace('.xlsx','_.xlsx')
                 if file_name[-4:]=='xlsx' or file_name[-4:]=='.xls':
                     shutil.copy(file,write_path+file_name)
                     print(f'{file_name} has been moved to the magic folder!  Pray to your god it works!')
@@ -58,3 +62,15 @@ def main():
 
 if __name__ == '__main__':
     main()
+    
+    
+    
+os.chdir(r'O:\M-R\MEDICAID_OPERATIONS\Electronic Payment Documentation\Test\Claims')
+obtained = []
+for root, dirs, files in os.walk(os.getcwd()):
+    for file in files:
+        file = file.replace('.xlsx','_.xlsx')
+        new_name = f'IRIS.CLD.{file}'
+        obtained.append(new_name)
+files = pd.DataFrame(obtained,columns=['File Name'])
+files.to_csv('automated_files.csv')
